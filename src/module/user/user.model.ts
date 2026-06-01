@@ -1,0 +1,118 @@
+import { Schema, model } from "mongoose";
+import { TUser, UserModel } from "./user.interface";
+import { USER_ACCESSIBILITY, USER_ROLE } from "./user.constant";
+
+
+
+const userSchema = new Schema<TUser, UserModel>(
+  {
+    browsername: {
+      type: String,
+      required: true,
+      index: true,
+      trim: true,
+    },
+    device: {
+      type: String,
+      required: true,
+       index: true,
+      trim: true,
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+       index: true,
+      lowercase: true,
+      trim: true,
+    },
+    engine: {
+      type: String,
+      required: true,
+       index: true,
+      trim: true,
+    },
+    ipaddress: {
+      type: String,
+       index: true,
+      required: true,
+    },
+    isVerify: {
+      type: Boolean,
+      default: false,
+    },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    os: {
+      type: String,
+      required: true,
+       index: true,
+      trim: true,
+    },
+    picture: {
+      type: String,
+      required: false,
+      default:null,
+    },
+   status: {
+  type: String,
+  required: true,
+  enum: [
+    USER_ACCESSIBILITY.isProgress,
+    USER_ACCESSIBILITY.blocked,
+  ],
+  default: USER_ACCESSIBILITY.isProgress,
+},
+role: {
+  type: String,
+  required: true,
+  enum: [
+    USER_ROLE.user,
+    USER_ROLE.admin,
+  ],
+  default: USER_ROLE.user,
+},
+    platform: {
+      type: String,
+      required: true,
+
+      trim: true,
+    },
+    isOnline: {
+      type: Boolean,
+      required: false,
+      default: true
+    },
+    isDelete: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  {
+    timestamps: true,
+    virtuals: true,
+  }
+);
+
+
+  userSchema .pre('find',function(next){
+    this.find({ isDelete:{$ne:true}})
+    next();
+  });
+  userSchema.pre('aggregate',function(next){
+
+    this.pipeline().unshift({$match:{isDelete:{$ne:true}}})
+    next();
+  });
+    userSchema.pre('findOne',function(next){
+  
+    this.find({ isDelete:{$ne:true}})
+  
+    next();
+  })
+
+ const users = model<TUser, UserModel>("users", userSchema);
+ export default users;
