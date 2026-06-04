@@ -27,10 +27,7 @@ declare global {
  * ========================
  */
 app.use(
-  cors({
-    origin: "*",
-    credentials: true,
-  })
+  cors()
 );
 
 /**
