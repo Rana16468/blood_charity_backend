@@ -160,11 +160,47 @@ export const healthCheck: RequestHandler = catchAsync(async (_req, res) => {
   });
 });
 
+
+const encrypt:RequestHandler=catchAsync(async(req,res)=>{
+
+     if (!req.cryptoSecret) {
+    throw new Error("Crypto secret is missing");
+  }
+
+    const result=await ChainLockServices.encryptIntoDb(req.body, req.cryptoSecret);
+
+
+  sendRespone(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Data encrypted into DB successfully",
+    data: result,
+  });
+});
+
+
+const decrypt:RequestHandler=catchAsync(async(req,res)=>{
+
+   if (!req.cryptoSecret) {
+    throw new Error("Crypto secret is missing");
+  }
+    const result=await ChainLockServices.decryptFromDb(req.body, req.cryptoSecret);
+  sendRespone(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Data decrypted from DB successfully",
+    data: result,
+  });
+});
+
+
 const ChainLockController = {
   generateKeys,
   encryptProfile,
   decryptProfile,
   healthCheck,
+  encrypt,
+  decrypt
 };
 
 export default ChainLockController;

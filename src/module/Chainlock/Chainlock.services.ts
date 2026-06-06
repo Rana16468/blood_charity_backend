@@ -25,6 +25,7 @@
 import crypto from "crypto";
 import { decryptAES, decryptRSA, encryptAES, encryptRSA, generateRSAKeys, signHMAC, verifyHMAC } from "../../utility/encryptionHelper/EncryptionHelper";
 import { sessionStore } from "../../utility/encryptionHelper/Chainlockstore";
+import { decrypt, encrypt } from "../../utility/encryptionHelper/CeyptoSecurity";
 
 
 // ── env vars ──────────────────────────────────────────────────────────────────
@@ -189,12 +190,39 @@ const chainLockHmacSignature=async()=>{
 
 }
 
+const encryptIntoDb=async(payload: any, cryptoSecret: string)=>{
+
+  const result = encrypt(payload, cryptoSecret!);
+
+  return {
+    payload,
+    cryptoSecret,
+    encryptedPayload: result
+  
+  }
+}
+
+const decryptFromDb=async(payload:any, cryptoSecret: string)=>{
+
+  const result = decrypt(payload.encrypted, cryptoSecret);
+
+      return {
+       payload,
+        cryptoSecret,
+        result
+      }
+
+}
+
+
 const ChainLockServices = {
   generateSessionKeys,
   encryptData,
   decryptData,
   getStats,
-  chainLockHmacSignature
+  chainLockHmacSignature,
+  encryptIntoDb,
+  decryptFromDb
 };
 
 export default ChainLockServices;
