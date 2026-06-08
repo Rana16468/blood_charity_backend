@@ -1,4 +1,6 @@
 import crypto from "crypto";
+import ApiError from "../../app/error/ApiError";
+import httpStatus from "http-status";
 
 // ─────────────────────────────────────────────
 //  Constants
@@ -71,9 +73,6 @@ function decryptString(token: string, secret: string): string {
   return decrypted.toString("utf8");
 }
 
-// ─────────────────────────────────────────────
-//  Types
-// ─────────────────────────────────────────────
 export type Payload =
   | Record<string, unknown>           // plain object
   | Record<string, unknown>[]         // array of objects
@@ -89,9 +88,7 @@ export interface DecryptResult {
   type: "object" | "array";
 }
 
-// ─────────────────────────────────────────────
-//  PUBLIC API
-// ─────────────────────────────────────────────
+
 
 /**
  * encrypt()
@@ -104,7 +101,7 @@ export interface DecryptResult {
  */
 export function encrypt(payload: Payload, secret: string): EncryptResult {
   if (!secret || secret.length < 8) {
-    throw new Error("Secret key must be at least 8 characters.");
+    throw new ApiError(httpStatus.NOT_EXTENDED,"Secret key must be at least 8 characters.","");
   }
 
   const type: "object" | "array" = Array.isArray(payload) ? "array" : "object";
@@ -122,7 +119,7 @@ export function encrypt(payload: Payload, secret: string): EncryptResult {
  */
 export function decrypt(encrypted: string, secret: string): DecryptResult {
   if (!secret || secret.length < 8) {
-    throw new Error("Secret key must be at least 8 characters.");
+    throw new ApiError( httpStatus.NOT_EXTENDED,"Secret key must be at least 8 characters.", "");
   }
 
   const json = decryptString(encrypted, secret);
