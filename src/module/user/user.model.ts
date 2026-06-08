@@ -98,6 +98,11 @@ const userSchema = new Schema<TUser, UserModel>(
       type: Boolean,
       default: true,
     },
+    generate_secret_key:{
+      type: String,
+      required:[true , 'generate_secret_key is required']
+
+    },
 
     isDelete: {
       type: Boolean,

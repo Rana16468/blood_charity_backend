@@ -7,11 +7,13 @@ import config from "../../app/config";
 import ApiError from "../../app/error/ApiError";
 import httpStatus from "http-status";
 import catchError from "../../app/error/catchError";
+import crypto from "crypto";
 
 type TJwtPayload = {
   id: string;
   role: string;
   email: string;
+  generate_secret_key: string
 };
 
 const socialMediaAuthIntoDb = async (payload: TUser) => {
@@ -26,7 +28,7 @@ const socialMediaAuthIntoDb = async (payload: TUser) => {
         email: payload.email,
         isDelete: false,
       },
-      { _id: 1, role: 1, email: 1, isVerify: 1 },
+      { _id: 1, role: 1, email: 1, isVerify: 1 , generate_secret_key:1},
       { session }
     );
 
@@ -50,6 +52,7 @@ const socialMediaAuthIntoDb = async (payload: TUser) => {
       id: user._id.toString(),
       role: user.role,
       email: user.email,
+      generate_secret_key: user.generate_secret_key
     };
 
     // 🔐 Generate tokens
@@ -75,7 +78,8 @@ const socialMediaAuthIntoDb = async (payload: TUser) => {
           engine: payload.engine,
           ipaddress: payload.ipaddress,
           os: payload.os,
-          platform: payload.platform, // ✅ FIXED (was payload.os)
+          platform: payload.platform, 
+          generate_secret_key: crypto.randomBytes(64).toString("hex")
         },
       },
       { new: true, upsert: true, session }
@@ -91,6 +95,7 @@ const socialMediaAuthIntoDb = async (payload: TUser) => {
     await session.commitTransaction();
     session.endSession();
 
+    
     return {
       accessToken,
       refreshToken,
