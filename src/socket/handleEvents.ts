@@ -10,7 +10,7 @@ const handleEvents = (io: IOServer, socket: Socket, currentUserId: string) => {
   
   socket.on("my_profile", async (_, callback) => {
     try {
-      const user = await users.findById(currentUserId);
+      const user = await users.findById(currentUserId).select("-generate_secret_key");
 
       if (!user) {
         const error = errorResponse("User not found in database", httpStatus.NOT_FOUND,);
@@ -39,7 +39,6 @@ const handleEvents = (io: IOServer, socket: Socket, currentUserId: string) => {
   socket.on("navigation_profile", async (_, callback) => {
   try {
    
-
     const user = await users
       .findById(currentUserId)
       .select("_id name picture role");
@@ -73,8 +72,6 @@ const handleEvents = (io: IOServer, socket: Socket, currentUserId: string) => {
 
 socket.on("update_profile", async (data, callback) => {
   try {
-    
-
     if (!currentUserId) {
       return callback?.({
         success: false,
