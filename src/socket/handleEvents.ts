@@ -3,10 +3,11 @@ import users from "../module/user/user.model";
 import httpStatus from "http-status";
 import { emitResponse, errorResponse, successResponse } from "../utility/socketSendRespone";
 import { USER_ROLE } from "../module/user/user.constant";
+import { decrypt } from "../utility/encryptionHelper/CeyptoSecurity";
 
 
 
-const handleEvents = (io: IOServer, socket: Socket, currentUserId: string) => {
+const handleEvents = (io: IOServer, socket: Socket, currentUserId: string, generate_secret_key: string) => {
   
   socket.on("my_profile", async (_, callback) => {
     try {
@@ -128,6 +129,39 @@ socket.on("update_profile", async (data, callback) => {
     });
   }
 });
+
+socket.on("blood_request", async (data, callback) =>{
+
+  try{
+     if (!currentUserId) {
+      return callback?.({
+        success: false,
+        message: "Unauthorized user",
+      });
+    }
+
+    console.log({encrypted:data.encrypted, generate_secret_key})
+
+    const result= decrypt(data.encrypted, generate_secret_key);
+
+    console.log(result);
+
+
+
+
+
+  }
+  catch (error) {
+    console.error("Update profile error:", error);
+
+    callback?.({
+      success: false,
+      message: "Something went wrong",
+    });
+  }
+
+
+})
 
 };
 

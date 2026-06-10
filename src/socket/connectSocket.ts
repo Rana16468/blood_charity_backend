@@ -82,7 +82,7 @@ const connectSocket = (server: HTTPServer) => {
         socket.broadcast.emit('user-online', {
           userId: currentUserId,
         });
-         handleEvents(io, socket, currentUserId);
+         handleEvents(io, socket, currentUserId,currentUser.generate_secret_key );
 
         console.log('✅ Authenticated user connected:', currentUserId);
       } else {

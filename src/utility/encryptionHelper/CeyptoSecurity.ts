@@ -46,6 +46,15 @@ function encryptString(plain: string, secret: string): string {
 
 // ─────────────────────────────────────────────
 //  Low-level: decrypt  "salt:iv:tag:ciphertext"
+//
+//  Compatible with both:
+//    - Node.js encryptString() above
+//    - Web Crypto (browser) frontend
+//
+//  The Web Crypto subtle.encrypt() appends the tag at the END of
+//  the ciphertext buffer. The frontend splits them before encoding,
+//  so the token format "salt:iv:tag:ciphertext" is the same.
+//  Node.js setAuthTag() must be called BEFORE decipher.update/final.
 // ─────────────────────────────────────────────
 function decryptString(token: string, secret: string): string {
   const parts = token.split(":");
@@ -58,11 +67,21 @@ function decryptString(token: string, secret: string): string {
   const iv = Buffer.from(ivHex, "hex");
   const tag = Buffer.from(tagHex, "hex");
   const ciphertext = Buffer.from(cipherHex, "hex");
+
+  if (iv.length !== IV_LENGTH) {
+    throw new Error(`Invalid IV length: expected ${IV_LENGTH}, got ${iv.length}`);
+  }
+  if (tag.length !== TAG_LENGTH) {
+    throw new Error(`Invalid tag length: expected ${TAG_LENGTH}, got ${tag.length}`);
+  }
+
   const key = deriveKey(secret, salt);
 
   const decipher = crypto.createDecipheriv(ALGORITHM, key, iv, {
     authTagLength: TAG_LENGTH,
   });
+
+  // ✅ Must call setAuthTag BEFORE update/final
   decipher.setAuthTag(tag);
 
   const decrypted = Buffer.concat([
@@ -88,8 +107,6 @@ export interface DecryptResult {
   type: "object" | "array";
 }
 
-
-
 /**
  * encrypt()
  *
@@ -101,7 +118,7 @@ export interface DecryptResult {
  */
 export function encrypt(payload: Payload, secret: string): EncryptResult {
   if (!secret || secret.length < 8) {
-    throw new ApiError(httpStatus.NOT_EXTENDED,"Secret key must be at least 8 characters.","");
+    throw new ApiError(httpStatus.NOT_EXTENDED, "Secret key must be at least 8 characters.", "");
   }
 
   const type: "object" | "array" = Array.isArray(payload) ? "array" : "object";
@@ -114,12 +131,13 @@ export function encrypt(payload: Payload, secret: string): EncryptResult {
 /**
  * decrypt()
  *
- * Accepts the `encrypted` string produced by encrypt().
+ * Accepts the `encrypted` string produced by encrypt() or the browser
+ * Web Crypto frontend (same "salt:iv:tag:ciphertext" hex format).
  * Returns the original payload + its type.
  */
 export function decrypt(encrypted: string, secret: string): DecryptResult {
   if (!secret || secret.length < 8) {
-    throw new ApiError( httpStatus.NOT_EXTENDED,"Secret key must be at least 8 characters.", "");
+    throw new ApiError(httpStatus.NOT_EXTENDED, "Secret key must be at least 8 characters.", "");
   }
 
   const json = decryptString(encrypted, secret);
