@@ -41,7 +41,7 @@ const createUserZodSchema = z.object({
         required_error: 'Role is Required',
         invalid_type_error: 'Invalid role value',
       })
-      .default(USER_ROLE.user),
+      .default(USER_ROLE.donor),
 
     status: z
       .enum(Object.values(USER_ACCESSIBILITY) as [string, ...string[]], {

@@ -82,10 +82,10 @@ const userSchema = new Schema<TUser, UserModel>(
       type: String,
       required: true,
       enum: [
-        USER_ROLE.user,
+        USER_ROLE.donor,
         USER_ROLE.admin,
       ],
-      default: USER_ROLE.user,
+      default: USER_ROLE.donor,
     },
 
     platform: {

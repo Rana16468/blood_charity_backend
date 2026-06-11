@@ -1,6 +1,6 @@
 //'admin' | 'user' | 'faculty'
 export const USER_ROLE = {
-    user: 'donor',
+    donor: 'donor',
     admin: 'admin',
     superAdmin:'superAdmin'
   } as const;

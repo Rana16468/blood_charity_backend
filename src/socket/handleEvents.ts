@@ -6,6 +6,9 @@ import { USER_ROLE } from "../module/user/user.constant";
 import { decrypt } from "../utility/encryptionHelper/CeyptoSecurity";
 import BloodRequestValidation from "../module/blood_request/blood_request.validation";
 import blood_requests from "../module/blood_request/blood_request.model";
+import notifications from "../module/notification/notification.model";
+import mongoose from "mongoose";
+import ApiError from "../app/error/ApiError";
 
 
 
@@ -73,6 +76,7 @@ const handleEvents = (io: IOServer, socket: Socket, currentUserId: string, gener
   }
 });
 
+
 socket.on("update_profile", async (data, callback) => {
   try {
     if (!currentUserId) {
@@ -132,84 +136,134 @@ socket.on("update_profile", async (data, callback) => {
   }
 });
 
+
 socket.on("join", ({  role }) => {
-  socket.join(role); 
+  console.log("joining room:", role); 
+    socket.join(role);
+    console.log("rooms:", socket.rooms); 
 
-  console.log(`User joined role room: ${role}`);
 });
+socket.on("blood_request", async (data, callback) => {
+  if (!currentUserId) {
+    return callback?.({
+      success: false,
+      message: "Unauthorized user",
+    });
+  }
 
-socket.on(
-  "blood_request",
-  async (data, callback) => {
-    try {
+  try {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
 
-      if (!currentUserId) {
-        return callback?.({
-          success: false,
-          message: "Unauthorized user",
-        });
-      }
-
-
-      const decryptData = await decrypt(
-        data.encrypted,
-        generate_secret_key
-      );
-
- 
-      const validation =
-        await BloodRequestValidation.BloodRequestZodSchema.parseAsync(
-          decryptData.decrypted
-        );
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
 
 
-      const bloodRequestBuilder = new blood_requests(validation);
-      const result = await bloodRequestBuilder.save();
+    const todaysRequestCount = await blood_requests.countDocuments({
+      userId: currentUserId, 
+      createdAt: {
+        $gte: startOfToday,
+        $lte: endOfToday,
+      },
+    });
 
-      if (!result) {
-        return callback?.({
-          success: false,
-          message: "Something went wrong while saving request",
-        });
-      }
-
-      
-      const notificationPayload = {
-        type: "BLOOD_REQUEST",
-        message: "New blood request created",
-        data: result,
-        createdAt: new Date(),
-      };
-
-    
-      io.to("donor").emit(
-        "blood_request_notification",
-        notificationPayload
-      );
-
-     
-      io.to("admin").emit(
-        "blood_request_notification",
-        notificationPayload
-      );
-
-    
-      return callback?.({
-        success: true,
-        message: "Blood request created successfully",
-        data: result,
-      });
-    } catch (error) {
-      console.error("Blood request socket error:", error);
-
+    if (todaysRequestCount >= 3) {
       return callback?.({
         success: false,
-        message: "Something went wrong",
+        message: "Daily request limit reached. You can only create 3 blood requests per day.",
       });
     }
+  } catch (countError) {
+    console.error("Error checking daily limit:", countError);
+    return callback?.({
+      success: false,
+      message: "Server error while verifying request limits.",
+    });
   }
-);
 
+  const session = await mongoose.startSession();
+  let transactionCommitted = false;
+  let savedResult = null;
+
+  try {
+    session.startTransaction();
+
+    const decryptData = await decrypt(data.encrypted, generate_secret_key);
+    const validatedData = await BloodRequestValidation.BloodRequestZodSchema.parseAsync(
+      decryptData.decrypted
+    );
+
+    const requestData = { ...validatedData, userId: currentUserId };
+
+    const [result] = await blood_requests.create([requestData], { session });
+
+    if (!result) {
+      throw new ApiError(httpStatus.BAD_REQUEST, "Failed to save blood request", "");
+    }
+
+    await notifications.create(
+      [
+        {
+          userId: currentUserId,
+          title: "Blood Request",
+          content: "New blood request created",
+          route: `/blood-request/${result._id}`,
+        },
+      ],
+      { session }
+    );
+
+    await session.commitTransaction();
+    transactionCommitted = true;
+    savedResult = result;
+
+  } catch (error: any) {
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
+
+    console.error("Blood request socket error:", error);
+
+    if (error?.name === "ZodError") {
+      return callback?.({
+        success: false,
+        message: "Validation failed",
+        errors: error.errors,
+      });
+    }
+
+    return callback?.({
+      success: false,
+      message: error instanceof ApiError ? error.message : "Something went wrong",
+    });
+  } finally {
+    await session.endSession();
+  }
+
+  if (transactionCommitted && savedResult) {
+    const notificationPayload = {
+      type: "BLOOD_REQUEST",
+      message: "New blood request created",
+      data: savedResult,
+      createdAt: new Date(),
+    };
+
+    // ✅ এভাবে করো — lowercase নিশ্চিত করো
+io.to(USER_ROLE.donor.toLowerCase()).emit("blood_request_notification", notificationPayload);
+io.to(USER_ROLE.admin.toLowerCase()).emit("blood_request_notification", notificationPayload);
+
+    socket.emit("blood_request", {
+      success: true,
+      data: savedResult,
+    });
+
+    return callback?.({
+      success: true,
+      message: "Blood request created successfully",
+      data: savedResult,
+    });
+  }
+});
 };
 
 export default handleEvents;
