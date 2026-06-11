@@ -4,10 +4,12 @@ import httpStatus from "http-status";
 import { emitResponse, errorResponse, successResponse } from "../utility/socketSendRespone";
 import { USER_ROLE } from "../module/user/user.constant";
 import { decrypt } from "../utility/encryptionHelper/CeyptoSecurity";
+import BloodRequestValidation from "../module/blood_request/blood_request.validation";
+import blood_requests from "../module/blood_request/blood_request.model";
 
 
 
-const handleEvents = (io: IOServer, socket: Socket, currentUserId: string, generate_secret_key: string) => {
+const handleEvents = (io: IOServer, socket: Socket, currentUserId: string, generate_secret_key: string, role: string) => {
   
   socket.on("my_profile", async (_, callback) => {
     try {
@@ -130,38 +132,83 @@ socket.on("update_profile", async (data, callback) => {
   }
 });
 
-socket.on("blood_request", async (data, callback) =>{
+socket.on("join", ({  role }) => {
+  socket.join(role); 
 
-  try{
-     if (!currentUserId) {
+  console.log(`User joined role room: ${role}`);
+});
+
+socket.on(
+  "blood_request",
+  async (data, callback) => {
+    try {
+
+      if (!currentUserId) {
+        return callback?.({
+          success: false,
+          message: "Unauthorized user",
+        });
+      }
+
+
+      const decryptData = await decrypt(
+        data.encrypted,
+        generate_secret_key
+      );
+
+ 
+      const validation =
+        await BloodRequestValidation.BloodRequestZodSchema.parseAsync(
+          decryptData.decrypted
+        );
+
+
+      const bloodRequestBuilder = new blood_requests(validation);
+      const result = await bloodRequestBuilder.save();
+
+      if (!result) {
+        return callback?.({
+          success: false,
+          message: "Something went wrong while saving request",
+        });
+      }
+
+      
+      const notificationPayload = {
+        type: "BLOOD_REQUEST",
+        message: "New blood request created",
+        data: result,
+        createdAt: new Date(),
+      };
+
+    
+      io.to("donor").emit(
+        "blood_request_notification",
+        notificationPayload
+      );
+
+     
+      io.to("admin").emit(
+        "blood_request_notification",
+        notificationPayload
+      );
+
+    
+      return callback?.({
+        success: true,
+        message: "Blood request created successfully",
+        data: result,
+      });
+    } catch (error) {
+      console.error("Blood request socket error:", error);
+
       return callback?.({
         success: false,
-        message: "Unauthorized user",
+        message: "Something went wrong",
       });
     }
-
-    console.log({encrypted:data.encrypted, generate_secret_key})
-
-    const result= decrypt(data.encrypted, generate_secret_key);
-
-    console.log(result);
-
-
-
-
-
   }
-  catch (error) {
-    console.error("Update profile error:", error);
-
-    callback?.({
-      success: false,
-      message: "Something went wrong",
-    });
-  }
-
-
-})
+);
 
 };
 

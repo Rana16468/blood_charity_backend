@@ -33,7 +33,6 @@ async function deriveKey(secret: string, salt: Uint8Array): Promise<CryptoKey> {
   const enc = new TextEncoder();
   const secretBuffer = enc.encode(secret);
 
-  // Import the raw password material
   const baseKey = await globalThis.crypto.subtle.importKey(
     "raw",
     secretBuffer,
@@ -42,11 +41,13 @@ async function deriveKey(secret: string, salt: Uint8Array): Promise<CryptoKey> {
     ["deriveKey"]
   );
 
-  // Derive the actual AES-GCM key
+  // ফিক্সড: explicit কাস্টিং 'as ArrayBuffer' করা হয়েছে TypeScript এর জন্য
+  const saltBuffer = salt.buffer.slice(salt.byteOffset, salt.byteOffset + salt.byteLength) as ArrayBuffer;
+
   return await globalThis.crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
-      salt: salt.buffer as ArrayBuffer, // Fixed: Cast to explicit ArrayBuffer
+      salt: saltBuffer, 
       iterations: PBKDF2_ITERATIONS,
       hash: "SHA-256",
     },
@@ -69,14 +70,17 @@ async function encryptString(plain: string, secret: string): Promise<string> {
   const enc = new TextEncoder();
   const encodedPlain = enc.encode(plain);
 
-  // Web Crypto automatically appends the Auth Tag to the end of the ciphertext
+  // ফিক্সড: মেমোরি সেফ স্লাইস এবং টাইপ কাস্ট করা হয়েছে
+  const ivBuffer = iv.buffer.slice(iv.byteOffset, iv.byteOffset + iv.byteLength) as ArrayBuffer;
+  const plainBuffer = encodedPlain.buffer.slice(encodedPlain.byteOffset, encodedPlain.byteOffset + encodedPlain.byteLength) as ArrayBuffer;
+
   const encryptedBuffer = await globalThis.crypto.subtle.encrypt(
     {
       name: ALGORITHM,
-      iv: iv.buffer as ArrayBuffer, // Fixed: Cast to explicit ArrayBuffer
+      iv: ivBuffer, 
     },
     key,
-    encodedPlain.buffer as ArrayBuffer // Fixed: Cast to explicit ArrayBuffer
+    plainBuffer 
   );
 
   return [
@@ -104,15 +108,23 @@ async function decryptString(token: string, secret: string): Promise<string> {
     throw new Error(`Invalid IV length: expected ${IV_LENGTH}, got ${iv.length}`);
   }
 
-  const key = await deriveKey(secret, salt);
+  // ফিক্সড: explicit কাস্টিং 'as ArrayBuffer' করা হয়েছে
+  const saltBuffer = salt.buffer.slice(salt.byteOffset, salt.byteOffset + salt.byteLength) as ArrayBuffer;
+  const key = await deriveKey(secret, new Uint8Array(saltBuffer));
+
+  const ivBuffer = iv.buffer.slice(iv.byteOffset, iv.byteOffset + iv.byteLength) as ArrayBuffer;
+  const cipherBuffer = ciphertextWithTag.buffer.slice(
+    ciphertextWithTag.byteOffset, 
+    ciphertextWithTag.byteOffset + ciphertextWithTag.byteLength
+  ) as ArrayBuffer;
 
   const decryptedBuffer = await globalThis.crypto.subtle.decrypt(
     {
       name: ALGORITHM,
-      iv: iv.buffer as ArrayBuffer, // Fixed: Cast to explicit ArrayBuffer
+      iv: ivBuffer, 
     },
     key,
-    ciphertextWithTag.buffer as ArrayBuffer // Fixed: Cast to explicit ArrayBuffer
+    cipherBuffer 
   );
 
   const dec = new TextDecoder();
