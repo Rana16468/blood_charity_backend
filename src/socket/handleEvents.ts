@@ -140,7 +140,7 @@ socket.on("update_profile", async (data, callback) => {
 socket.on("join", ({  role }) => {
   console.log("joining room:", role); 
     socket.join(role);
-    console.log("rooms:", socket.rooms); 
+    
 
 });
 socket.on("blood_request", async (data, callback) => {
