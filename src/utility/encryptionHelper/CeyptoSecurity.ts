@@ -1,101 +1,131 @@
-import crypto from "crypto";
 import ApiError from "../../app/error/ApiError";
 import httpStatus from "http-status";
 
 // ─────────────────────────────────────────────
 //  Constants
 // ─────────────────────────────────────────────
-const ALGORITHM = "aes-256-gcm";
-const IV_LENGTH = 12; // 96-bit IV recommended for GCM
-const TAG_LENGTH = 16; // 128-bit auth tag
-const KEY_LENGTH = 32; // 256-bit key
+const ALGORITHM = "AES-GCM";
+const IV_LENGTH = 12;      
+const SALT_LENGTH = 16;    
+const KEY_LENGTH = 256;    
+const PBKDF2_ITERATIONS = 100_000;
 
 // ─────────────────────────────────────────────
-//  Key derivation  (PBKDF2 → 32-byte key)
+//  Helpers: Hex conversions (replaces Buffer)
 // ─────────────────────────────────────────────
-function deriveKey(secret: string, salt: Buffer): Buffer {
-  return crypto.pbkdf2Sync(secret, salt, 100_000, KEY_LENGTH, "sha256");
+function bufToHex(buffer: Uint8Array): string {
+  return Array.from(buffer)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function hexToBuf(hex: string): Uint8Array {
+  if (hex.length % 2 !== 0) throw new Error("Invalid hex string");
+  const view = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < view.length; i++) {
+    view[i] = parseInt(hex.substring(i * 2, i * 2 + 2), 16);
+  }
+  return view;
+}
+
+
+async function deriveKey(secret: string, salt: Uint8Array): Promise<CryptoKey> {
+  const enc = new TextEncoder();
+  const secretBuffer = enc.encode(secret);
+
+  // Import the raw password material
+  const baseKey = await globalThis.crypto.subtle.importKey(
+    "raw",
+    secretBuffer,
+    "PBKDF2",
+    false,
+    ["deriveKey"]
+  );
+
+  // Derive the actual AES-GCM key
+  return await globalThis.crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: salt.buffer as ArrayBuffer, // Fixed: Cast to explicit ArrayBuffer
+      iterations: PBKDF2_ITERATIONS,
+      hash: "SHA-256",
+    },
+    baseKey,
+    { name: ALGORITHM, length: KEY_LENGTH },
+    false,
+    ["encrypt", "decrypt"]
+  );
 }
 
 // ─────────────────────────────────────────────
-//  Low-level: encrypt a UTF-8 string
-//  Returns  "salt:iv:tag:ciphertext"  (all hex)
+//  Low-level: Encrypt UTF-8 String
+//  Returns: "salt:iv:ciphertext+tag" (all hex)
 // ─────────────────────────────────────────────
-function encryptString(plain: string, secret: string): string {
-  const salt = crypto.randomBytes(16);
-  const iv = crypto.randomBytes(IV_LENGTH);
-  const key = deriveKey(secret, salt);
+async function encryptString(plain: string, secret: string): Promise<string> {
+  const salt = globalThis.crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
+  const iv = globalThis.crypto.getRandomValues(new Uint8Array(IV_LENGTH));
+  const key = await deriveKey(secret, salt);
 
-  const cipher = crypto.createCipheriv(ALGORITHM, key, iv, {
-    authTagLength: TAG_LENGTH,
-  });
+  const enc = new TextEncoder();
+  const encodedPlain = enc.encode(plain);
 
-  const encrypted = Buffer.concat([
-    cipher.update(plain, "utf8"),
-    cipher.final(),
-  ]);
-  const tag = cipher.getAuthTag();
+  // Web Crypto automatically appends the Auth Tag to the end of the ciphertext
+  const encryptedBuffer = await globalThis.crypto.subtle.encrypt(
+    {
+      name: ALGORITHM,
+      iv: iv.buffer as ArrayBuffer, // Fixed: Cast to explicit ArrayBuffer
+    },
+    key,
+    encodedPlain.buffer as ArrayBuffer // Fixed: Cast to explicit ArrayBuffer
+  );
 
   return [
-    salt.toString("hex"),
-    iv.toString("hex"),
-    tag.toString("hex"),
-    encrypted.toString("hex"),
+    bufToHex(salt),
+    bufToHex(iv),
+    bufToHex(new Uint8Array(encryptedBuffer)),
   ].join(":");
 }
 
 // ─────────────────────────────────────────────
-//  Low-level: decrypt  "salt:iv:tag:ciphertext"
-//
-//  Compatible with both:
-//    - Node.js encryptString() above
-//    - Web Crypto (browser) frontend
-//
-//  The Web Crypto subtle.encrypt() appends the tag at the END of
-//  the ciphertext buffer. The frontend splits them before encoding,
-//  so the token format "salt:iv:tag:ciphertext" is the same.
-//  Node.js setAuthTag() must be called BEFORE decipher.update/final.
+//  Low-level: Decrypt "salt:iv:ciphertext+tag"
 // ─────────────────────────────────────────────
-function decryptString(token: string, secret: string): string {
+async function decryptString(token: string, secret: string): Promise<string> {
   const parts = token.split(":");
-  if (parts.length !== 4) {
+  if (parts.length !== 3) {
     throw new Error("Invalid encrypted token format.");
   }
 
-  const [saltHex, ivHex, tagHex, cipherHex] = parts;
-  const salt = Buffer.from(saltHex, "hex");
-  const iv = Buffer.from(ivHex, "hex");
-  const tag = Buffer.from(tagHex, "hex");
-  const ciphertext = Buffer.from(cipherHex, "hex");
+  const [saltHex, ivHex, cipherHex] = parts;
+  const salt = hexToBuf(saltHex);
+  const iv = hexToBuf(ivHex);
+  const ciphertextWithTag = hexToBuf(cipherHex);
 
   if (iv.length !== IV_LENGTH) {
     throw new Error(`Invalid IV length: expected ${IV_LENGTH}, got ${iv.length}`);
   }
-  if (tag.length !== TAG_LENGTH) {
-    throw new Error(`Invalid tag length: expected ${TAG_LENGTH}, got ${tag.length}`);
-  }
 
-  const key = deriveKey(secret, salt);
+  const key = await deriveKey(secret, salt);
 
-  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv, {
-    authTagLength: TAG_LENGTH,
-  });
+  const decryptedBuffer = await globalThis.crypto.subtle.decrypt(
+    {
+      name: ALGORITHM,
+      iv: iv.buffer as ArrayBuffer, // Fixed: Cast to explicit ArrayBuffer
+    },
+    key,
+    ciphertextWithTag.buffer as ArrayBuffer // Fixed: Cast to explicit ArrayBuffer
+  );
 
-  // ✅ Must call setAuthTag BEFORE update/final
-  decipher.setAuthTag(tag);
-
-  const decrypted = Buffer.concat([
-    decipher.update(ciphertext),
-    decipher.final(),
-  ]);
-
-  return decrypted.toString("utf8");
+  const dec = new TextDecoder();
+  return dec.decode(decryptedBuffer);
 }
 
+// ─────────────────────────────────────────────
+//  Exported Types & Interfaces
+// ─────────────────────────────────────────────
 export type Payload =
-  | Record<string, unknown>           // plain object
-  | Record<string, unknown>[]         // array of objects
-  | unknown[];                        // any array
+  | Record<string, unknown>
+  | Record<string, unknown>[]
+  | unknown[];
 
 export interface EncryptResult {
   encrypted: string;
@@ -107,41 +137,28 @@ export interface DecryptResult {
   type: "object" | "array";
 }
 
-/**
- * encrypt()
- *
- * Accepts:
- *   - a plain object   → encrypts the whole JSON
- *   - an array (any)   → encrypts the whole JSON
- *
- * Returns a single opaque `encrypted` string + original `type` hint.
- */
-export function encrypt(payload: Payload, secret: string): EncryptResult {
+// ─────────────────────────────────────────────
+//  High-level Exports
+// ─────────────────────────────────────────────
+export async function encrypt(payload: Payload, secret: string): Promise<EncryptResult> {
   if (!secret || secret.length < 8) {
     throw new ApiError(httpStatus.NOT_EXTENDED, "Secret key must be at least 8 characters.", "");
   }
 
   const type: "object" | "array" = Array.isArray(payload) ? "array" : "object";
   const json = JSON.stringify(payload);
-  const encrypted = encryptString(json, secret);
+  const encrypted = await encryptString(json, secret);
 
   return { encrypted, type };
 }
 
-/**
- * decrypt()
- *
- * Accepts the `encrypted` string produced by encrypt() or the browser
- * Web Crypto frontend (same "salt:iv:tag:ciphertext" hex format).
- * Returns the original payload + its type.
- */
-export function decrypt(encrypted: string, secret: string): DecryptResult {
+export async function decrypt(encrypted: string, secret: string): Promise<DecryptResult> {
   if (!secret || secret.length < 8) {
     throw new ApiError(httpStatus.NOT_EXTENDED, "Secret key must be at least 8 characters.", "");
   }
 
-  const json = decryptString(encrypted, secret);
-  const parsed: Payload = JSON.parse(json) as Payload;
+  const json = await decryptString(encrypted, secret);
+  const parsed = JSON.parse(json) as Payload;
   const type: "object" | "array" = Array.isArray(parsed) ? "array" : "object";
 
   return { decrypted: parsed, type };

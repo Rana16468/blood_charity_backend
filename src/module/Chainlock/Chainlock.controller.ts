@@ -6,7 +6,6 @@ import sendRespone from "../../utility/sendRespone";
 
 
 const CRYPTO_SECRET =
-  process.env.CRYPTO_SECRET ||
   "mySuperSecret123kDFHkjhj4";
 
 // POST /api/chainlock/encrypt
