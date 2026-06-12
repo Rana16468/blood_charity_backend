@@ -14,6 +14,7 @@ export interface BloodRequest {
   hospital: string;
   urgency:string;
   locationData: LocationData;
+  bloodResuestType :"volunteer" | "request"
   isDelete:boolean
 }
 

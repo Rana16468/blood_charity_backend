@@ -24,14 +24,17 @@ const BloodRequestSchema = new Schema<
       type: Schema.Types.ObjectId,
       required: true,
       ref: "User",
+      index: true 
     },
     blood: {
       type: String,
       required: true,
+      index: true 
     },
     phone: {
       type: String,
       required: true,
+      index: true 
     },
     hospital: {
       type: String,
@@ -40,11 +43,22 @@ const BloodRequestSchema = new Schema<
     urgency: {
       type: String,
       required: true,
+      index: true 
     },
     locationData: {
       type: LocationSchema,
       required: true,
     },
+    bloodResuestType: {
+  type: String,
+  enum: {
+    values: ["volunteer", "request"],
+    message: "{VALUE} is not a valid request type",
+  },
+  required: [true, "Blood Request Type is required"],
+  trim: true,
+  index: true 
+},
     isDelete:{
         type:Boolean,
         required: false

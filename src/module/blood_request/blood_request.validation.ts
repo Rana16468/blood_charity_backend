@@ -16,6 +16,9 @@ const LocationSchema = z.object({
   hospital: z.string().min(1, "Hospital is required"),
   urgency: z.string().min(1, "Urgency is required"),
   locationData: LocationSchema,
+  bloodResuestType: z
+  .enum(["volunteer", "request"])
+  .default("request"), 
   isDelete: z.boolean().optional(),
 });
 
