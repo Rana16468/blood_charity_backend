@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { BloodResuestType } from "./blood_request.constant";
 
 
 const LocationSchema = z.object({
@@ -17,8 +18,8 @@ const LocationSchema = z.object({
   urgency: z.string().min(1, "Urgency is required"),
   locationData: LocationSchema,
   bloodResuestType: z
-  .enum(["volunteer", "request"])
-  .default("request"), 
+  .enum([BloodResuestType.volunteer, BloodResuestType.request])
+  .default( BloodResuestType.request), 
   isDelete: z.boolean().optional(),
 });
 

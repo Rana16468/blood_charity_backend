@@ -1,5 +1,6 @@
 import { Schema, model } from "mongoose";
 import { BloodRequest, BloodRequestModel } from "./blood_request.interface";
+import { BloodResuestType } from "./blood_request.constant";
 
 
 
@@ -52,7 +53,7 @@ const BloodRequestSchema = new Schema<
     bloodResuestType: {
   type: String,
   enum: {
-    values: ["volunteer", "request"],
+    values: [BloodResuestType.volunteer, BloodResuestType.request],
     message: "{VALUE} is not a valid request type",
   },
   required: [true, "Blood Request Type is required"],
