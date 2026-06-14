@@ -1,4 +1,6 @@
-import { FilterQuery, Query } from 'mongoose';
+import { FilterQuery, Query } from "mongoose";
+import cache from "./cache/node-cache";
+
 
 class QueryBuilder<T> {
   public modelQuery: Query<T[], T>;
@@ -13,19 +15,17 @@ class QueryBuilder<T> {
     const searchTerm = this?.query?.searchTerm;
 
     if (searchTerm) {
-      // Apply $regex only to fields that are strings
       const stringFields = searchableFields.filter((field) => {
-        // Check if the field type in your schema is `String`
         const schemaPath = this.modelQuery.model.schema.path(field);
-        return schemaPath && schemaPath.instance === 'String';
+        return schemaPath && schemaPath.instance === "String";
       });
 
       this.modelQuery = this.modelQuery.find({
         $or: stringFields.map(
           (field) =>
             ({
-              [field]: { $regex: searchTerm, $options: 'i' },
-            }) as FilterQuery<T>,
+              [field]: { $regex: searchTerm, $options: "i" },
+            } as FilterQuery<T>)
         ),
       });
     }
@@ -33,71 +33,112 @@ class QueryBuilder<T> {
     return this;
   }
 
-  //finter function
   filter() {
-    let queryObject = { ...this.query };
-    if (this.query && this.query.maxPrice) {
-      queryObject = {
-        price: {
-          $gte: Number(this.query.minPrice),
-          $lte: Number(this.query.maxPrice),
-        },
-      };
-    }
-    if (this.query?.releaseDate) {
-      queryObject = {
-        releaseDate: {
-          $gte: this.query?.releaseDate as string,
-          $lte: this.query?.releaseDate as string,
-        },
+    let queryObject: any = { ...this.query };
+
+    if (this.query?.maxPrice) {
+      queryObject.price = {
+        $gte: Number(this.query.minPrice),
+        $lte: Number(this.query.maxPrice),
       };
     }
 
-    const excludeField = ['searchTerm', 'sort', 'limit', 'page', 'fields'];
+    if (this.query?.releaseDate) {
+      queryObject.releaseDate = {
+        $gte: this.query.releaseDate,
+        $lte: this.query.releaseDate,
+      };
+    }
+
+    const excludeField = [
+      "searchTerm",
+      "sort",
+      "limit",
+      "page",
+      "fields",
+      "maxPrice",
+      "minPrice",
+    ];
+
     excludeField.forEach((el) => delete queryObject[el]);
 
     this.modelQuery = this.modelQuery.find(queryObject as FilterQuery<T>);
     return this;
   }
 
+
   sort() {
     const sort =
-      (this?.query?.sort as string)?.split(',').join(' ') || '-createdAt';
-    this.modelQuery = this.modelQuery.sort(sort as string);
+      (this?.query?.sort as string)?.split(",").join(" ") || "-createdAt";
+
+    this.modelQuery = this.modelQuery.sort(sort);
     return this;
   }
 
-  //pagination
 
   paginate() {
     const limit = Math.max(Number(this.query.limit) || 10, 1);
     const page = Math.max(Number(this.query.page) || 1, 1);
     const skip = (page - 1) * limit;
-    this.modelQuery = this.modelQuery.skip(skip).limit(limit);
 
+    this.modelQuery = this.modelQuery.skip(skip).limit(limit);
     return this;
   }
 
+
   fields() {
     const field =
-      (this?.query?.fields as string)?.split(',').join(' ') || '-__v';
+      (this?.query?.fields as string)?.split(",").join(" ") || "-__v";
+
     this.modelQuery = this.modelQuery.select(field);
     return this;
   }
 
+
+  async exec() {
+    const cacheKey = `query:${JSON.stringify(this.query)}`;
+
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) {
+      return cachedData;
+    }
+
+    const data = await this.modelQuery;
+
+    cache.set(cacheKey, data, 60); 
+
+    return data;
+  }
+
+  // -------------------------
+  // COUNT TOTAL WITH CACHE
+  // -------------------------
   async countTotal() {
     const totalQueries = this.modelQuery.getFilter();
+
+    const cacheKey = `count:${JSON.stringify(totalQueries)}`;
+
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const total = await this.modelQuery.model.countDocuments(totalQueries);
+
     const page = Number(this?.query?.page) || 1;
     const limit = Number(this?.query?.limit) || 10;
     const totalPage = Math.ceil(total / limit);
 
-    return {
+    const result = {
       page,
       limit,
       total,
       totalPage,
     };
+
+    cache.set(cacheKey, result, 60);
+
+    return result;
   }
 }
 
