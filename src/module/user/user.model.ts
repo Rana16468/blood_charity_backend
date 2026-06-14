@@ -103,7 +103,12 @@ const userSchema = new Schema<TUser, UserModel>(
       required:[true , 'generate_secret_key is required']
 
     },
+    isDonorRegister:{
+      type: String,
+      required: false,
+    default: false
 
+    },
     isDelete: {
       type: Boolean,
       default: false,

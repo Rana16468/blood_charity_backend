@@ -1,5 +1,5 @@
 
-export const BloodResuestType={
+export const BloodRequestType={
     request:"request",
     volunteer:"volunteer"
 } as const ;

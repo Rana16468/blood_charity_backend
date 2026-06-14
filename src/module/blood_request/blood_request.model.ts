@@ -1,15 +1,15 @@
 import { Schema, model } from "mongoose";
 import { BloodRequest, BloodRequestModel } from "./blood_request.interface";
-import { BloodResuestType } from "./blood_request.constant";
+import { BloodRequestType} from "./blood_request.constant";
 
 
 
 
 const LocationSchema = new Schema(
   {
-    lat: { type: Number, required: true },
-    lng: { type: Number, required: true },
-    accuracy: { type: Number, required: true },
+    lat: { type: Number, required: true, index: true  },
+    lng: { type: Number, required: true , index: true },
+    accuracy: { type: Number, required: true, index: true  },
     address: { type: String, required: true },
   },
   { _id: false }
@@ -53,7 +53,7 @@ const BloodRequestSchema = new Schema<
     bloodResuestType: {
   type: String,
   enum: {
-    values: [BloodResuestType.volunteer, BloodResuestType.request],
+    values: [BloodRequestType.volunteer, BloodRequestType.request],
     message: "{VALUE} is not a valid request type",
   },
   required: [true, "Blood Request Type is required"],

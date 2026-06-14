@@ -2,13 +2,15 @@ import { Server as IOServer, Socket } from "socket.io";
 import users from "../module/user/user.model";
 import httpStatus from "http-status";
 import { emitResponse, errorResponse, successResponse } from "../utility/socketSendRespone";
-import { USER_ROLE } from "../module/user/user.constant";
+import { USER_ACCESSIBILITY, USER_ROLE } from "../module/user/user.constant";
 import { decrypt } from "../utility/encryptionHelper/CeyptoSecurity";
 import BloodRequestValidation from "../module/blood_request/blood_request.validation";
 import blood_requests from "../module/blood_request/blood_request.model";
 import notifications from "../module/notification/notification.model";
 import mongoose from "mongoose";
 import ApiError from "../app/error/ApiError";
+import { BloodRequestType } from "../module/blood_request/blood_request.constant";
+import blood_donor from "../module/donor_register/donor_register.model";
 
 
 
@@ -222,7 +224,6 @@ socket.on("blood_request", async (data, callback) => {
       await session.abortTransaction();
     }
 
-    console.error("Blood request socket error:", error);
 
     if (error?.name === "ZodError") {
       return callback?.({
@@ -264,6 +265,166 @@ io.to(USER_ROLE.admin.toLowerCase()).emit("blood_request_notification", notifica
     });
   }
 });
+
+socket.on("donor_register", async (data, callback) => {
+  const session = await mongoose.startSession();
+
+  try {
+    if (!currentUserId) {
+      return callback?.({
+        success: false,
+        message: "Unauthorized user",
+      });
+    }
+
+    session.startTransaction();
+
+   
+    const decryptData = await decrypt(data.encrypted, generate_secret_key);
+
+    if (!decryptData?.decrypted) {
+      throw new Error("Invalid encrypted data");
+    }
+
+   
+    const validation =
+      await BloodRequestValidation.DonorRegisterValidation.parseAsync(
+        decryptData.decrypted
+      );
+
+   
+    if (validation.userId !== currentUserId.toString()) {
+      throw new Error("Invalid user access");
+    }
+
+   
+    const isExistAlreadyRegister = await users.findOne(
+      {
+        _id: currentUserId,
+        isDonorRegister: true,
+        isVerify: true,
+        status: USER_ACCESSIBILITY.isProgress,
+      },
+      null,
+      { session }
+    );
+
+    if (isExistAlreadyRegister) {
+      throw new Error("User already registered as donor");
+    }
+
+    
+    const existingDonor = await blood_donor.findOne(
+      {
+        userId: currentUserId,
+        isDelete: false,
+      },
+      null,
+      { session }
+    );
+
+    if (existingDonor) {
+      throw new Error("User is already registered as a donor");
+    }
+
+    
+    const volunteerRequest = await blood_donor.create(
+      [
+        {
+          userId: currentUserId,
+          name: validation.name,
+          phone: validation.phone,
+          blood: validation.blood,
+          locationData: {
+            lat: validation.lat,
+            lng: validation.lng,
+            accuracy: validation.accuracy,
+            address: validation.address,
+          },
+          bloodRequestType: BloodRequestType.volunteer,
+        },
+      ],
+      { session }
+    );
+
+    const donor = volunteerRequest[0];
+
+    // 7. update user
+    await users.findByIdAndUpdate(
+      currentUserId,
+      {
+        $set: {
+          isDonorRegister: true,
+        },
+      },
+      {
+        new: true,
+        session,
+      }
+    );
+
+    await notifications.create(
+      [
+        {
+          userId: currentUserId,
+          title: "Blood Donor Registration Successful",
+          content: "You have successfully registered as a blood donor.",
+          route: `/blood-donor/${donor._id}`,
+        },
+      ],
+      { session }
+    );
+
+    await session.commitTransaction();
+
+    // 10. emit socket events (outside transaction)
+    const notificationPayload = {
+      type: "BLOOD_DONOR_REGISTER",
+      message: "New blood donor registered",
+      data: donor,
+      createdAt: new Date(),
+    };
+
+    io.to(USER_ROLE.donor.toLowerCase()).emit(
+      "blood_donor_notification",
+      notificationPayload
+    );
+
+    io.to(USER_ROLE.admin.toLowerCase()).emit(
+      "blood_donor_notification",
+      notificationPayload
+    );
+
+    socket.emit("donor_register", {
+      success: true,
+      data: donor,
+    });
+
+    // 11. callback success
+    return callback?.({
+      success: true,
+      message: "Blood donor registered successfully.",
+      data: donor,
+    });
+  } catch (error: any) {
+    await session.abortTransaction();
+
+    console.error("Donor registration error:", error);
+
+    return callback?.({
+      success: false,
+      message: error.message || "Failed to register donor.",
+    });
+  } finally {
+    session.endSession();
+  }
+});
+
+
 };
+
+
+
+
 
 export default handleEvents;

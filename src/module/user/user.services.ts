@@ -13,6 +13,7 @@ type TJwtPayload = {
   role: string;
   email: string;
   generate_secret_key: string;
+  isDonorRegister: boolean
 };
 
 const socialMediaAuthIntoDb = async (payload: TUser) => {
@@ -21,15 +22,12 @@ const socialMediaAuthIntoDb = async (payload: TUser) => {
   try {
     session.startTransaction();
 
-    // 🔐 1. Generate secret key FIRST
+   
     const newSecretKey = generateKey(64);
 
-    // 🔍 2. Check existing user
+   
     let existingUser = await users.findOne(
-      {
-        email: payload.email,
-        isDelete: false,
-      },
+      { email: payload.email, isDelete: false },
       { _id: 1, role: 1, email: 1 },
       { session }
     );
@@ -37,11 +35,11 @@ const socialMediaAuthIntoDb = async (payload: TUser) => {
     let userId: string;
     let userRole: string = payload.role || "user";
 
-    // 👤 3. Create user if not exists
+  
     if (!existingUser) {
       const newUser = new users({
         ...payload,
-        generate_secret_key: newSecretKey, // ✅ FIXED HERE
+        generate_secret_key: newSecretKey,
         isVerify: true,
         status: USER_ACCESSIBILITY.isProgress,
       });
@@ -49,14 +47,13 @@ const socialMediaAuthIntoDb = async (payload: TUser) => {
       const savedUser = await newUser.save({ session });
 
       userId = savedUser._id.toString();
-      if (savedUser.role) userRole = savedUser.role;
+      userRole = savedUser.role;
     } else {
       userId = existingUser._id.toString();
       userRole = existingUser.role;
     }
 
-    // 🔄 4. Update session/device info (NO duplicate secret key generation)
-    await users.findOneAndUpdate(
+    const updatedUser = await users.findOneAndUpdate(
       { email: payload.email },
       {
         $set: {
@@ -66,17 +63,25 @@ const socialMediaAuthIntoDb = async (payload: TUser) => {
           ipaddress: payload.ipaddress,
           os: payload.os,
           platform: payload.platform,
+
+          // ✅ FIX: always update secret key
+          generate_secret_key: newSecretKey,
         },
       },
-      { new: true, upsert: true, session }
+      {
+        new: true,
+        upsert: true,
+        session,
+      }
     );
 
-    // 🔐 5. JWT payload
+    // 🔐 5. JWT payload (use DB-confirmed value)
     const jwtPayload: TJwtPayload = {
       id: userId,
       role: userRole,
       email: payload.email,
-      generate_secret_key: newSecretKey,
+      generate_secret_key: updatedUser?.generate_secret_key || newSecretKey,
+      isDonorRegister: existingUser?.isDonorRegister?true : false
     };
 
     // 🔐 6. Generate tokens

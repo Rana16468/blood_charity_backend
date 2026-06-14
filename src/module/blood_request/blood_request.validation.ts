@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { BloodResuestType } from "./blood_request.constant";
+import { BloodRequestType } from "./blood_request.constant";
 
 
 const LocationSchema = z.object({
@@ -18,13 +18,28 @@ const LocationSchema = z.object({
   urgency: z.string().min(1, "Urgency is required"),
   locationData: LocationSchema,
   bloodResuestType: z
-  .enum([BloodResuestType.volunteer, BloodResuestType.request])
-  .default( BloodResuestType.request), 
+  .enum([BloodRequestType.volunteer, BloodRequestType.request])
+  .default( BloodRequestType.request), 
   isDelete: z.boolean().optional(),
 });
 
+const DonorRegisterValidation= z.object({
+  userId: z.string({required_error:"userId is required"}),
+  name: z.string({required_error:"name is required"}),
+  phone: z.string().min(10, "Phone number is too short").max(15,"Phone number is too large"),
+  blood: z.string().min(1, "Blood group is required"),
+  lat : z.number(),
+  lng: z.number(),
+  accuracy: z.number(),
+  address: z.string(),
+
+
+
+})
+
 const BloodRequestValidation={
-   BloodRequestZodSchema
+   BloodRequestZodSchema,
+   DonorRegisterValidation
 };
 
 export default BloodRequestValidation;
