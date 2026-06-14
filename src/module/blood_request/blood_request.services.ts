@@ -116,7 +116,7 @@ const findMyLocationNearestBloodRequestIntoDb = async (
         { $limit: limit },
         {
           $project: {
-            userId: 1,
+           
             blood: 1,
             phone: 1,
             hospital: 1,
@@ -158,7 +158,6 @@ const findMyLocationNearestBloodRequestIntoDb = async (
   }
 };
 
-// ✅ নির্দিষ্ট blood type এর সব cache clear
 const clearBloodRequestCache = (blood: string) => {
   const keys = geoCache.keys();
   const matchedKeys = keys.filter((key) =>
@@ -170,7 +169,7 @@ const clearBloodRequestCache = (blood: string) => {
   }
 };
 
-// ✅ সম্পূর্ণ cache clear
+
 const clearAllCache = () => {
   geoCache.flushAll();
   console.log("🗑️ সব Cache CLEARED");
