@@ -1,10 +1,12 @@
 import { RequestHandler } from 'express';
 import catchAsync from '../../utility/catchAsync';
 
-import sendRespone from '../../utility/sendRespone';
+
 import httpStatus from 'http-status';
 import { UserServices } from './user.services';
 import config from '../../app/config';
+import sendResponse from '../../utility/sendRespone';
+
 
 const createUser: RequestHandler = catchAsync(async (req, res) => {
   const result = await UserServices.socialMediaAuthIntoDb(req.body);
@@ -13,7 +15,7 @@ const createUser: RequestHandler = catchAsync(async (req, res) => {
     secure: config.NODE_ENV === 'production',
     httpOnly: true,
   });
-  sendRespone(res, {
+  sendResponse(res, {
     success: true,
     statusCode: httpStatus.OK,
     message: 'Successfully Login',

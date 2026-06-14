@@ -24,7 +24,7 @@ const BloodRequestSchema = new Schema<
     userId: {
       type: Schema.Types.ObjectId,
       required: true,
-      ref: "User",
+      ref: "users",
       index: true 
     },
     blood: {

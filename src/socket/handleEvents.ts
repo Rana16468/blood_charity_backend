@@ -248,8 +248,6 @@ socket.on("blood_request", async (data, callback) => {
       data: savedResult,
       createdAt: new Date(),
     };
-
-    // ✅ এভাবে করো — lowercase নিশ্চিত করো
 io.to(USER_ROLE.donor.toLowerCase()).emit("blood_request_notification", notificationPayload);
 io.to(USER_ROLE.admin.toLowerCase()).emit("blood_request_notification", notificationPayload);
 
@@ -377,7 +375,6 @@ socket.on("donor_register", async (data, callback) => {
 
     await session.commitTransaction();
 
-    // 10. emit socket events (outside transaction)
     const notificationPayload = {
       type: "BLOOD_DONOR_REGISTER",
       message: "New blood donor registered",
@@ -400,7 +397,6 @@ socket.on("donor_register", async (data, callback) => {
       data: donor,
     });
 
-    // 11. callback success
     return callback?.({
       success: true,
       message: "Blood donor registered successfully.",
@@ -419,6 +415,8 @@ socket.on("donor_register", async (data, callback) => {
     session.endSession();
   }
 });
+
+
 
 
 };
