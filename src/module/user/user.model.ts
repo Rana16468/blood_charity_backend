@@ -104,7 +104,7 @@ const userSchema = new Schema<TUser, UserModel>(
 
     },
     isDonorRegister:{
-      type: String,
+      type: Boolean,
       required: false,
     default: false
 

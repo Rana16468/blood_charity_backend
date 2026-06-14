@@ -26,7 +26,7 @@ export interface TUser {
   picture: string;
   platform: string;
   isOnline: boolean;
-  isDonorRegister:Boolean;
+  isDonorRegister:boolean;
   generate_secret_key: string
   isDelete: boolean;
 
