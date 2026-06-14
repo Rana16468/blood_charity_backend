@@ -1,5 +1,6 @@
 import catchError from "../../app/error/catchError"
-import blood_donor from "../donor_register/donor_register.model";
+import blood_requests from "./blood_request.model";
+
 
 
 
@@ -10,17 +11,16 @@ const findMyLocationNearestBloodRequestIntoDb = async (
   try {
     const lat = Number(query.lat);
     const lng = Number(query.lng);
-    const radius = Number(query.radius) || 10; // km
+    const radius = Number(query.radius) || 10;
     const blood = query.blood as string;
 
-    const donors = await blood_donor.aggregate([
+    const requests = await blood_requests.aggregate([
       {
         $match: {
           blood,
-          isDelete: false
+          isDelete: { $ne: true },
         },
       },
-
       {
         $addFields: {
           distance: {
@@ -91,23 +91,24 @@ const findMyLocationNearestBloodRequestIntoDb = async (
           distance: { $lte: radius },
         },
       },
-
       {
         $project: {
-          name: 1,
-          phone: 1,
+          userId: 1,
           blood: 1,
+          phone: 1,
+          hospital: 1,
+          urgency: 1,
+          bloodResuestType: 1,
           locationData: 1,
           distance: { $round: ["$distance", 2] },
         },
       },
-
       {
         $sort: { distance: 1 },
       },
     ]);
 
-    return donors;
+    return requests;
   } catch (error) {
     throw catchError(error);
   }

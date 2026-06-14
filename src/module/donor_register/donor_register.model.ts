@@ -68,6 +68,12 @@ const bloodDonorSchema = new Schema<
       required: true,
       index: true 
     },
+    isBloodDonated:{
+      type: Boolean,
+      required: false,
+      default: false , 
+      index: true 
+    }, 
     isDelete: {
       type: Boolean,
       default: false,

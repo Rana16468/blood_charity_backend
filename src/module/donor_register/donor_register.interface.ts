@@ -13,7 +13,8 @@ export interface TUserLocation {
   phone: string;
   blood: string;
   locationData: TLocationData;
-   bloodRequestType :"volunteer" | "request"
+  bloodRequestType :"volunteer" | "request"
+  isBloodDonated: boolean;
    isDelete: false
 }
 
