@@ -49,6 +49,7 @@ const findMyLocationNearestBloodRequestIntoDb = async (
   query: Record<string, unknown>,
   generate_secret_key: string
 ) => {
+
   try {
     const lat = Number(query.lat);
     const lng = Number(query.lng);
