@@ -60,8 +60,17 @@ const BloodRequestSchema = new Schema<
   trim: true,
   index: true 
 },
-    isDelete:{
+isDonorFind:{
+
+  type: Boolean,
+  required: false,
+  default: false ,
+  index: true 
+
+},
+isDelete:{
         type:Boolean,
+        index: true,
         required: false
     }
   },

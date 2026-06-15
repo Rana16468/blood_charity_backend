@@ -4,11 +4,46 @@ import { PipelineStage } from "mongoose";
 import NodeCache from "node-cache";
 
 
+const CACHE_TTL = {
+  critical: 30,    // 30 seconds — life-threatening, always fresh
+  urgent: 120,     // 2 minutes
+  normal: 300,     // 5 minutes
+  default: 300,    // fallback
+};
+
 const geoCache = new NodeCache({
-  stdTTL: 300,       
-  checkperiod: 120,
+  stdTTL: 300,
+  checkperiod: 60,  
   useClones: false,
+  deleteOnExpire: true, 
 });
+geoCache.on("expired", (key: string, value: unknown) => {
+  console.log(`⏰ Cache EXPIRED → ${key}`);
+});
+
+geoCache.on("del", (key: string, value: unknown) => {
+  console.log(`🗑️ Cache DELETED → ${key}`);
+});
+
+geoCache.on("set", (key: string, value: unknown) => {
+  console.log(`💾 Cache SET → ${key}`);
+});
+
+const FULL_FLUSH_INTERVAL_MS = 10 * 60 * 1000;
+const fullFlushTimer = setInterval(() => {
+  const keyCount = geoCache.keys().length;
+  if (keyCount > 0) {
+    geoCache.flushAll();
+    console.log(`🔄 Scheduled full cache flush → ${keyCount} keys cleared at ${new Date().toISOString()}`);
+  }
+}, FULL_FLUSH_INTERVAL_MS);
+
+fullFlushTimer.unref();
+
+const resolveCacheTTL = (urgency?: string): number => {
+  if (!urgency) return CACHE_TTL.default;
+  return CACHE_TTL[urgency as keyof typeof CACHE_TTL] ?? CACHE_TTL.default;
+};
 
 const findMyLocationNearestBloodRequestIntoDb = async (
   query: Record<string, unknown>,
@@ -22,23 +57,31 @@ const findMyLocationNearestBloodRequestIntoDb = async (
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 10;
     const skip = (page - 1) * limit;
+    const urgency = query.urgency as string | undefined;
 
-    const urgency = query.urgency as string;
-    const cacheTTL = urgency === "urgent" ? 30 : 300;
+    // ✅ TTL based on urgency in request query
+    const cacheTTL = resolveCacheTTL(urgency);
 
-    const cacheKey = `blood_req:${blood}:${lat}:${lng}:${radius}:${page}:${limit}`;
+    // ✅ Include urgency in cache key so different urgency filters don't collide
+    const cacheKey = `blood_req:${blood}:${urgency ?? "all"}:${lat}:${lng}:${radius}:${page}:${limit}`;
 
     const cached = geoCache.get(cacheKey);
     if (cached) {
-      console.log(`✅ Cache HIT → ${cacheKey}`);
+      const ttlRemaining = geoCache.getTtl(cacheKey);
+      console.log(`✅ Cache HIT → ${cacheKey} | Expires in: ${ttlRemaining ? Math.round((ttlRemaining - Date.now()) / 1000) : "?"}s`);
       return cached;
     }
+
+
+    const urgencyMatch = urgency ? { urgency } : {};
 
     const basePipeline: PipelineStage[] = [
       {
         $match: {
           blood,
+          ...urgencyMatch,
           isDelete: { $ne: true },
+          isDonorFind: { $ne: true },
         },
       },
       {
@@ -47,9 +90,7 @@ const findMyLocationNearestBloodRequestIntoDb = async (
             $let: {
               vars: {
                 lat1: { $multiply: [lat, Math.PI / 180] },
-                lat2: {
-                  $multiply: ["$locationData.lat", Math.PI / 180],
-                },
+                lat2: { $multiply: ["$locationData.lat", Math.PI / 180] },
                 deltaLat: {
                   $multiply: [
                     { $subtract: ["$locationData.lat", lat] },
@@ -97,6 +138,17 @@ const findMyLocationNearestBloodRequestIntoDb = async (
               },
             },
           },
+
+          urgencyPriority: {
+            $switch: {
+              branches: [
+                { case: { $eq: ["$urgency", "critical"] }, then: 1 },
+                { case: { $eq: ["$urgency", "urgent"] }, then: 2 },
+                { case: { $eq: ["$urgency", "normal"] }, then: 3 },
+              ],
+              default: 99,
+            },
+          },
         },
       },
       {
@@ -105,7 +157,10 @@ const findMyLocationNearestBloodRequestIntoDb = async (
         },
       },
       {
-        $sort: { distance: 1 as const },
+        $sort: {
+          urgencyPriority: 1 as const,
+          distance: 1 as const,
+        },
       },
     ];
 
@@ -116,27 +171,23 @@ const findMyLocationNearestBloodRequestIntoDb = async (
         { $limit: limit },
         {
           $project: {
-           
             blood: 1,
             phone: 1,
             hospital: 1,
             urgency: 1,
             bloodResuestType: 1,
             locationData: 1,
+            isDonorFind: 1,
             distance: { $round: ["$distance", 2] },
           },
         },
       ]),
-
-      blood_requests.aggregate([
-        ...basePipeline,
-        { $count: "total" },
-      ]),
+      blood_requests.aggregate([...basePipeline, { $count: "total" }]),
     ]);
 
     const total = totalCount[0]?.total || 0;
     const totalPages = Math.ceil(total / limit);
-//http://localhost:3052/api/v1/blood_request/find_my_location_nearest_blood_request?lat=23.780546&lng=90.407469&radius=10&blood=A%2B
+
     const result = {
       meta: {
         total,
@@ -145,12 +196,12 @@ const findMyLocationNearestBloodRequestIntoDb = async (
         totalPages,
         hasNextPage: page < totalPages,
         hasPrevPage: page > 1,
+        cachedUntil: new Date(Date.now() + cacheTTL * 1000).toISOString(), // ✅ Tell client when cache expires
       },
       data: requests,
     };
 
     geoCache.set(cacheKey, result, cacheTTL);
-    console.log(`💾 Cache SET → ${cacheKey} | TTL: ${cacheTTL}s`);
 
     return result;
   } catch (error) {
@@ -158,27 +209,39 @@ const findMyLocationNearestBloodRequestIntoDb = async (
   }
 };
 
-const clearBloodRequestCache = (blood: string) => {
+const clearBloodRequestCache = (blood: string, urgency?: string) => {
   const keys = geoCache.keys();
-  const matchedKeys = keys.filter((key) =>
-    key.startsWith(`blood_req:${blood}`)
-  );
+
+  // ✅ If urgency passed, clear only that urgency tier's cache
+  const prefix = urgency
+    ? `blood_req:${blood}:${urgency}`
+    : `blood_req:${blood}`;
+
+  const matchedKeys = keys.filter((key) => key.startsWith(prefix));
   if (matchedKeys.length > 0) {
     geoCache.del(matchedKeys);
-    console.log(`🗑️ Cache CLEARED → ${matchedKeys.length}টি key deleted (blood: ${blood})`);
+    console.log(`🗑️ Cache CLEARED → ${matchedKeys.length} keys deleted (blood: ${blood}, urgency: ${urgency ?? "all"})`);
   }
 };
 
-
 const clearAllCache = () => {
+  const keyCount = geoCache.keys().length;
   geoCache.flushAll();
-  console.log("🗑️ সব Cache CLEARED");
+  console.log(`🗑️ Full cache cleared → ${keyCount} keys removed`);
+};
+
+
+const destroyCacheTimer = () => {
+  clearInterval(fullFlushTimer);
+  geoCache.close();
+  console.log("🔌 Cache timer stopped and store closed");
 };
 
 const BloodRequestServices = {
   findMyLocationNearestBloodRequestIntoDb,
   clearBloodRequestCache,
   clearAllCache,
+  destroyCacheTimer,
 };
 
 export default BloodRequestServices;

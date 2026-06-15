@@ -15,6 +15,7 @@ export interface BloodRequest {
   urgency:string;
   locationData: LocationData;
   bloodResuestType :"volunteer" | "request"
+  isDonorFind: boolean;
   isDelete:boolean
 }
 
