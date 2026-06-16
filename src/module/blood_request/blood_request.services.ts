@@ -205,7 +205,7 @@ const findMyLocationNearestBloodRequestIntoDb = async (
 
     geoCache.set(cacheKey, result, cacheTTL);
 
-    return  encrypt(result, generate_secret_key);
+    return result
 
 
   } catch (error) {
