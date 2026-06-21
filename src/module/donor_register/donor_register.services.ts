@@ -1,8 +1,10 @@
+import httpStatus from "http-status";
 import catchError from "../../app/error/catchError";
 import { encrypt } from "../../utility/encryptionHelper/CeyptoSecurity";
 import blood_donor from "./donor_register.model";
 import { PipelineStage } from "mongoose";
 import NodeCache from "node-cache";
+import ApiError from "../../app/error/ApiError";
 
 const CACHE_TTL_DEFAULT = 300;
 
@@ -29,8 +31,11 @@ const findMyLocationNearestBloodDonorIntoDb = async (
     const lat = Number(query.lat);
     const lng = Number(query.lng);
 
+    console.log("lat and lng",{lat, lng})
+
     if (Number.isNaN(lat) || Number.isNaN(lng)) {
-      throw new Error("lat and lng are required and must be valid numbers");
+      throw new ApiError(
+        httpStatus.NOT_EXTENDED,"lat and lng are required and must be valid numbers",'');
     }
 
     const radius = Number(query.radius) || 10;
@@ -152,6 +157,7 @@ const findMyLocationNearestBloodDonorIntoDb = async (
     const encrypted = await encrypt(result, generate_secret_key);
 
     donorGeoCache.set(cacheKey, encrypted);
+    console.log(encrypt)
 
     return encrypted;
   } catch (error) {
