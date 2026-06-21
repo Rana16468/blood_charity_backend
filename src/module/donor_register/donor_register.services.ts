@@ -1,6 +1,5 @@
 import httpStatus from "http-status";
 import catchError from "../../app/error/catchError";
-import { encrypt } from "../../utility/encryptionHelper/CeyptoSecurity";
 import blood_donor from "./donor_register.model";
 import { PipelineStage } from "mongoose";
 import NodeCache from "node-cache";
@@ -25,17 +24,19 @@ fullFlushTimer.unref();
 
 const findMyLocationNearestBloodDonorIntoDb = async (
   query: Record<string, unknown>,
-  generate_secret_key: string
 ) => {
   try {
     const lat = Number(query.lat);
     const lng = Number(query.lng);
 
-    console.log("lat and lng",{lat, lng})
+  
 
     if (Number.isNaN(lat) || Number.isNaN(lng)) {
       throw new ApiError(
-        httpStatus.NOT_EXTENDED,"lat and lng are required and must be valid numbers",'');
+        httpStatus.NOT_EXTENDED,
+        "lat and lng are required and must be valid numbers",
+        ""
+      );
     }
 
     const radius = Number(query.radius) || 10;
@@ -44,9 +45,9 @@ const findMyLocationNearestBloodDonorIntoDb = async (
     const limit = Number(query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const cacheKey = `blood_donor:${blood}:${lat.toFixed(3)}:${lng.toFixed(
-      3
-    )}:${radius}:${page}:${limit}`;
+      console.log("lat and lng", { lat, lng, radius, blood });
+
+    const cacheKey = `blood_donor:${blood}:${lat.toFixed(3)}:${lng.toFixed(3)}:${radius}:${page}:${limit}`;
 
     const cached = donorGeoCache.get(cacheKey);
     if (cached) {
@@ -111,8 +112,6 @@ const findMyLocationNearestBloodDonorIntoDb = async (
       { $sort: { distance: 1 as const, createdAt: -1 as const } },
     ];
 
-    // Single round-trip: get paginated docs + total count together via $facet
-    // instead of running the whole geo pipeline twice.
     const [facetResult] = await blood_donor.aggregate([
       ...basePipeline,
       {
@@ -154,12 +153,9 @@ const findMyLocationNearestBloodDonorIntoDb = async (
       data: facetResult?.data || [],
     };
 
-    const encrypted = await encrypt(result, generate_secret_key);
+    donorGeoCache.set(cacheKey, result);
 
-    donorGeoCache.set(cacheKey, encrypted);
-    console.log(encrypt)
-
-    return encrypted;
+    return result;
   } catch (error) {
     throw catchError(error);
   }
@@ -190,5 +186,3 @@ const DonorRegisterServices = {
 };
 
 export default DonorRegisterServices;
-
-//{{baseUrl}}/api/v1/blood_donor/find_my_nearest_blood_donor?lat=23.780546&lng=90.407469&blood=B%2B&radius=10

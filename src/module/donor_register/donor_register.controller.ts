@@ -7,7 +7,7 @@ import httpStatus from "http-status";
 
 const findMyLocationNearestBloodDonor:RequestHandler=catchAsync(async(req, res)=>{
 
-    const result=await DonorRegisterServices.findMyLocationNearestBloodDonorIntoDb(req.query, req.user.generate_secret_key);
+    const result=await DonorRegisterServices.findMyLocationNearestBloodDonorIntoDb(req.query);
     sendResponse(res, {
     success: true,
     statusCode: httpStatus.OK,
