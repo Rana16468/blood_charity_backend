@@ -76,6 +76,7 @@ const bloodDonorSchema = new Schema<
     }, 
     isDelete: {
       type: Boolean,
+      index: true,
       default: false,
     },
   },

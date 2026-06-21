@@ -4,6 +4,8 @@ import app from './app';
 import config from './app/config';
 import { connectSocket } from './socket/connectSocket';
 import BloodRequestServices from './module/blood_request/blood_request.services';
+import DonorRegisterServices from './module/donor_register/donor_register.services';
+
 
 
 let server: Server;
@@ -29,7 +31,10 @@ async function gracefulShutdown(reason: string, exitCode: number) {
   try {
     
     BloodRequestServices.destroyCacheTimer();
-    console.log('✅ Cache timer stopped');
+    console.log('✅ Blood request cache timer stopped');
+
+    DonorRegisterServices.destroyDonorCacheTimer();
+    console.log('✅ Donor cache timer stopped');
 
 
     await new Promise<void>((resolve) => {
