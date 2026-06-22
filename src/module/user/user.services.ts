@@ -6,7 +6,7 @@ import { jwtHelpers } from "../../app/helper/jwtHelpers";
 import config from "../../app/config";
 import catchError from "../../app/error/catchError";
 import generateKey from "../../utility/generateKey ";
-
+import NodeCache from "node-cache";
 
 type TJwtPayload = {
   id: string;
@@ -112,6 +112,46 @@ const socialMediaAuthIntoDb = async (payload: TUser) => {
   }
 };
 
+
+const cache = new NodeCache();
+const CACHE_TTL = 60 * 5; 
+
+const isDonorRegisterIntoDb = async (id: string) => {
+  const cacheKey = `donor-register:${id}`;
+
+  try {
+    const cached = cache.get<boolean>(cacheKey);
+    if (cached !== undefined) {
+      return { isDonorRegister: cached };
+    }
+
+    const user = await users
+      .findById(id)
+      .select("isDonorRegister")
+      .lean();
+
+   
+    if (!user) return null;
+
+ 
+    const isDonorRegister = Boolean(user.isDonorRegister);
+
+    if (isDonorRegister === true) {
+      cache.set(cacheKey, true, CACHE_TTL);
+    }
+
+    return { isDonorRegister };
+  } catch (error) {
+    throw catchError(error);
+  }
+};
+
+
+
+
+
+
 export const UserServices = {
   socialMediaAuthIntoDb,
+  isDonorRegisterIntoDb
 };

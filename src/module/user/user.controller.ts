@@ -23,8 +23,20 @@ const createUser: RequestHandler = catchAsync(async (req, res) => {
   });
 });
 
+const  isDonorRegister:RequestHandler=catchAsync(async(req , res)=>{
+
+    const result=await UserServices.isDonorRegisterIntoDb(req.user.id);
+    sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: 'Successfully is Donor Register',
+    data: result
+  });
+})
+
 const UserController = {
   createUser,
+  isDonorRegister
 
 };
 
