@@ -1,4 +1,4 @@
-import { Model } from "mongoose";
+import { Model, Types } from "mongoose";
 
 export interface TLocationData {
   lat: number;
@@ -8,7 +8,7 @@ export interface TLocationData {
 }
 
 export interface TUserLocation {
-  userId: string;
+  userId: Types.ObjectId;
   name: string;
   phone: string;
   blood: string;

@@ -37,7 +37,8 @@ const bloodDonorSchema = new Schema<
 >(
   {
     userId: {
-      type: String,
+      type: Schema.Types.ObjectId,
+      ref:"users",
       required: true,
       index: true,
     },

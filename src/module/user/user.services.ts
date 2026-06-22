@@ -28,7 +28,7 @@ const socialMediaAuthIntoDb = async (payload: TUser) => {
    
     let existingUser = await users.findOne(
       { email: payload.email, isDelete: false },
-      { _id: 1, role: 1, email: 1 },
+      { _id: 1, role: 1, email: 1 , isDonorRegister:1},
       { session }
     );
 
