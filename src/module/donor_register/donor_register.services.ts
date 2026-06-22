@@ -45,7 +45,7 @@ const findMyLocationNearestBloodDonorIntoDb = async (
     const limit = Number(query.limit) || 10;
     const skip = (page - 1) * limit;
 
-      console.log("lat and lng", { lat, lng, radius, blood });
+      
 
     const cacheKey = `blood_donor:${blood}:${lat.toFixed(3)}:${lng.toFixed(3)}:${radius}:${page}:${limit}`;
 
