@@ -16,7 +16,19 @@ const findMyLocationNearestBloodDonor:RequestHandler=catchAsync(async(req, res)=
   });
 });
 
+const changeLocation: RequestHandler=catchAsync(async(req , res)=>{
+ const result=await DonorRegisterServices.changeLocationIntoDb(req.user.id, req.body);
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: result.message,
+    data: result,
+  });
+
+});
+
 const DonorRegisterController={
-    findMyLocationNearestBloodDonor
+    findMyLocationNearestBloodDonor,
+    changeLocation
 }
 export default DonorRegisterController;

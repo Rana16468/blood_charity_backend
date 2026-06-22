@@ -4,6 +4,7 @@ import blood_donor from "./donor_register.model";
 import { PipelineStage } from "mongoose";
 import NodeCache from "node-cache";
 import ApiError from "../../app/error/ApiError";
+import { TLocationData } from "./donor_register.interface";
 
 const CACHE_TTL_DEFAULT = 300;
 
@@ -178,11 +179,42 @@ const destroyDonorCacheTimer = () => {
   donorGeoCache.close();
 };
 
+
+const changeLocationIntoDb = async (id: string, payload: TLocationData) => {
+  try {
+   
+    const result = await blood_donor.findOneAndUpdate(
+      {userId:id},
+      { $set: { locationData: payload } },
+      { new: true } 
+    );
+
+    if (!result) {
+      throw new ApiError(httpStatus.NOT_FOUND, "Donor not found to update location", "");
+    }
+
+    return {
+      success: true,
+      message: "Successfully changed location",
+    };
+  } catch (error) {
+    throw catchError(error);
+  }
+};
+
+//{{baseUrl}}/api/v1/blood_donor/change_location
+/* {
+    "lat": 23.780586,
+    "lng": 90.407394,
+    "accuracy": 185,
+    "address": "Beta One Investor LTD, 50, Bir Uttam A. K. Khandakar Road, Gulshan 1, Gulshan, Dhaka, Dhaka Metropolitan, Dhaka District, Dhaka Division, 1212, Bangladesh"
+}*/
 const DonorRegisterServices = {
   findMyLocationNearestBloodDonorIntoDb,
   clearDonorCache,
   clearAllDonorCache,
   destroyDonorCacheTimer,
+  changeLocationIntoDb
 };
 
 export default DonorRegisterServices;
