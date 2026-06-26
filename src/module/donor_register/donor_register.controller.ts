@@ -27,8 +27,21 @@ const changeLocation: RequestHandler=catchAsync(async(req , res)=>{
 
 });
 
+const findMyCurrentLocation:RequestHandler=catchAsync(async(req , res)=>{
+
+
+      const result= await DonorRegisterServices.findMyCurrentLocationIntoDb(req.user.id);
+       sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "successfully find my current location",
+    data: result,
+  });
+})
+
 const DonorRegisterController={
     findMyLocationNearestBloodDonor,
-    changeLocation
+    changeLocation,
+    findMyCurrentLocation
 }
 export default DonorRegisterController;

@@ -182,6 +182,8 @@ const destroyDonorCacheTimer = () => {
 
 const changeLocationIntoDb = async (id: string, payload: TLocationData) => {
   try {
+
+
    
     const result = await blood_donor.findOneAndUpdate(
       {userId:id},
@@ -202,19 +204,31 @@ const changeLocationIntoDb = async (id: string, payload: TLocationData) => {
   }
 };
 
-//{{baseUrl}}/api/v1/blood_donor/change_location
-/* {
-    "lat": 23.780586,
-    "lng": 90.407394,
-    "accuracy": 185,
-    "address": "Beta One Investor LTD, 50, Bir Uttam A. K. Khandakar Road, Gulshan 1, Gulshan, Dhaka, Dhaka Metropolitan, Dhaka District, Dhaka Division, 1212, Bangladesh"
-}*/
+const findMyCurrentLocationIntoDb=async(id: string)=>{
+
+     try{
+
+        
+
+         return await blood_donor.findOne({userId:id}).lean();
+
+
+
+     }
+catch (error) {
+    throw catchError(error);
+  }
+
+}
+
+
 const DonorRegisterServices = {
   findMyLocationNearestBloodDonorIntoDb,
   clearDonorCache,
   clearAllDonorCache,
   destroyDonorCacheTimer,
-  changeLocationIntoDb
+  changeLocationIntoDb,
+  findMyCurrentLocationIntoDb
 };
 
 export default DonorRegisterServices;

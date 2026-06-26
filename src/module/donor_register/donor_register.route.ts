@@ -13,5 +13,10 @@ router.patch("/change_location",
      validationRequest(DonorRegisterValidation.LocationDataSchema),
       DonorRegisterController.changeLocation)
 
+router.get("/find_my_current_location",
+     auth(USER_ROLE.donor),
+     DonorRegisterController.findMyCurrentLocation
+)
+
 const DonorRequestRoute=router;
 export  default DonorRequestRoute;

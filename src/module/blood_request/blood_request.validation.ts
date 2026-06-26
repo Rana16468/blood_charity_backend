@@ -37,9 +37,17 @@ const DonorRegisterValidation= z.object({
 
 })
 
+const IsDonorFindSchema= z.object({
+  body: z.object({
+    
+isDonorFind:z.boolean({required_error:"is donor request required"})
+  })
+})
+
 const BloodRequestValidation={
    BloodRequestZodSchema,
-   DonorRegisterValidation
+   DonorRegisterValidation,
+   IsDonorFindSchema
 };
 
 export default BloodRequestValidation;

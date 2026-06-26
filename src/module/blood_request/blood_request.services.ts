@@ -1,8 +1,11 @@
+import QueryBuilder from "../../app/builder/QueryBuilder";
 import catchError from "../../app/error/catchError";
-import { encrypt } from "../../utility/encryptionHelper/CeyptoSecurity";
 import blood_requests from "../blood_request/blood_request.model";
 import { PipelineStage } from "mongoose";
 import NodeCache from "node-cache";
+import { excludeField } from "./blood_request.constant";
+import ApiError from "../../app/error/ApiError";
+import httpStatus from "http-status";
 
 
 const CACHE_TTL = {
@@ -241,11 +244,84 @@ const destroyCacheTimer = () => {
   console.log("🔌 Cache timer stopped and store closed");
 };
 
+const findByRequestHistoryIntoDb = async (
+  userId: string,
+  query: Record<string, unknown>
+) => {
+  try {
+    const queryBuilder = new QueryBuilder(
+      blood_requests.find({ userId }),
+      query
+    )
+      .search(excludeField)
+      .filter()
+      .sort()
+      .paginate()
+      .fields();
+
+    const [result, meta] = await Promise.all([
+      queryBuilder.modelQuery,
+      queryBuilder.countTotal(),
+    ]);
+
+    return {
+      meta,
+      result,
+    };
+  } catch (error) {
+    throw catchError(error);
+  }
+};
+
+const IsBloodDonorFindIntoDb=async(id: string, payload:{
+isDonorFind: boolean})=>{
+
+  try{
+
+    const result=await blood_requests.findOneAndUpdate({_id:id}, {$set:{
+      isDonorFind: payload.isDonorFind
+    }}, {new: true});
+
+    if(!result){
+      throw new ApiError(httpStatus.NOT_EXTENDED ,"issues by the is Donnded find" , "")
+    }
+    return{
+      success: true , 
+      message: "successfully  completed"
+    }
+
+  }
+  catch (error) {
+    throw catchError(error);
+  }
+}
+
+const deleteBloodRequestIntoDb = async (id: string) => {
+  
+  try {
+    const result = await blood_requests.findByIdAndDelete(id);
+
+    if (!result) {
+      throw new Error("Blood request not found");
+    }
+
+    return result;
+  } catch (error) {
+    throw catchError(error);
+  }
+};
+
+
+
 const BloodRequestServices = {
   findMyLocationNearestBloodRequestIntoDb,
   clearBloodRequestCache,
   clearAllCache,
   destroyCacheTimer,
+  findByRequestHistoryIntoDb,
+  IsBloodDonorFindIntoDb,
+  deleteBloodRequestIntoDb
+  
 };
 
 export default BloodRequestServices;
