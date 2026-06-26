@@ -15,6 +15,7 @@ export interface TUserLocation {
   locationData: TLocationData;
   bloodRequestType :"volunteer" | "request"
   isBloodDonated: boolean;
+   donatedCount: number;
    isDelete: false
 }
 

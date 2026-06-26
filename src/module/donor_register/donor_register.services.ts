@@ -5,6 +5,7 @@ import { PipelineStage } from "mongoose";
 import NodeCache from "node-cache";
 import ApiError from "../../app/error/ApiError";
 import { TLocationData } from "./donor_register.interface";
+import { boolean } from "zod";
 
 const CACHE_TTL_DEFAULT = 300;
 
@@ -205,21 +206,55 @@ const changeLocationIntoDb = async (id: string, payload: TLocationData) => {
 };
 
 const findMyCurrentLocationIntoDb=async(id: string)=>{
-
      try{
-
-        
-
          return await blood_donor.findOne({userId:id}).lean();
-
-
-
      }
-catch (error) {
+  catch (error) {
     throw catchError(error);
   }
+};
 
-}
+const IsBloodDonatedIntoDb = async (
+  id: string,
+  userId: string,
+  payload: { isBloodDonated: boolean }
+) => {
+
+ 
+  try {
+    const result = await blood_donor.findOneAndUpdate(
+      { _id: id, userId },
+      {
+        $set: {
+          isBloodDonated: !payload.isBloodDonated,
+        },
+        $inc: {
+          donatedCount: !payload.isBloodDonated ? 1 : 1,
+        },
+      },
+      {
+        new: true,
+        upsert:true
+      }
+    );
+
+    if (!result) {
+      throw new ApiError(
+        httpStatus.NOT_FOUND,
+        "Blood donor not found",
+        ""
+      );
+    }
+
+    return {
+      success: true,
+      message: "Successfully updated blood donation status.",
+     
+    };
+  } catch (error) {
+    throw catchError(error);
+  }
+};
 
 
 const DonorRegisterServices = {
@@ -228,7 +263,8 @@ const DonorRegisterServices = {
   clearAllDonorCache,
   destroyDonorCacheTimer,
   changeLocationIntoDb,
-  findMyCurrentLocationIntoDb
+  findMyCurrentLocationIntoDb,
+  IsBloodDonatedIntoDb
 };
 
 export default DonorRegisterServices;

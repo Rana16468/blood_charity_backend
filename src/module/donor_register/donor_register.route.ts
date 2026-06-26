@@ -16,7 +16,12 @@ router.patch("/change_location",
 router.get("/find_my_current_location",
      auth(USER_ROLE.donor),
      DonorRegisterController.findMyCurrentLocation
-)
+);
+
+router.patch("/is_blood_donated/:id", 
+     auth(USER_ROLE.donor),
+      validationRequest(DonorRegisterValidation.IsBloodDonatedSchema),
+     DonorRegisterController.IsBloodDonated)
 
 const DonorRequestRoute=router;
 export  default DonorRequestRoute;

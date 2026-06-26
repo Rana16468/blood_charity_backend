@@ -9,8 +9,15 @@ import { z } from 'zod';
    })
 });
 
+const IsBloodDonatedSchema=z.object({
+  body: z.object({
+    isBloodDonated: z.boolean({required_error:"IS Blood Donated Required"})
+  })
+})
+
 const DonorRegisterValidation={
-    LocationDataSchema
+    LocationDataSchema,
+    IsBloodDonatedSchema
 }
 
 export default DonorRegisterValidation;

@@ -37,11 +37,24 @@ const findMyCurrentLocation:RequestHandler=catchAsync(async(req , res)=>{
     message: "successfully find my current location",
     data: result,
   });
+});
+
+const IsBloodDonated:RequestHandler=catchAsync(async(req , res)=>{
+
+    const result=await DonorRegisterServices.IsBloodDonatedIntoDb(req.params.id, req.user.id, req.body);
+     sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "successfully Recorded Your Donated Report",
+    data: result,
+  });
+    
 })
 
 const DonorRegisterController={
     findMyLocationNearestBloodDonor,
     changeLocation,
-    findMyCurrentLocation
+    findMyCurrentLocation,
+    IsBloodDonated
 }
 export default DonorRegisterController;

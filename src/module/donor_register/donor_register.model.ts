@@ -75,6 +75,13 @@ const bloodDonorSchema = new Schema<
       default: false , 
       index: true 
     }, 
+    donatedCount:{
+      type:Number,
+      required: false,
+      index: true ,
+      default: 0
+
+    },
     isDelete: {
       type: Boolean,
       index: true,
