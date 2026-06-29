@@ -4,6 +4,7 @@ import UserRouters from '../module/user/user.routes';
 import ChainLockRouter from '../module/Chainlock/Chainlock.routes';
 import BloodRequestRouter from '../module/blood_request/blood_request.route';
 import DonorRequestRoute from '../module/donor_register/donor_register.route';
+import NotificationRouter from '../module/notification/notification.routes';
 
 
 const router = express.Router();
@@ -12,8 +13,10 @@ const moduleRouter = [
   { path: '/user', route: UserRouters },
   {path:"/blood_charity", route: ChainLockRouter},
   {path:"/blood_request", route: BloodRequestRouter},
-  {path:'/blood_donor', route:DonorRequestRoute}
+  {path:'/blood_donor', route:DonorRequestRoute},
+  {path:"/notification", route: NotificationRouter}
 ];
+
 
 moduleRouter.forEach((v) => router.use(v.path, v.route));
 
