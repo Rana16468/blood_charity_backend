@@ -6,6 +6,10 @@ import NodeCache from "node-cache";
 import ApiError from "../../app/error/ApiError";
 import { TLocationData } from "./donor_register.interface";
 import { boolean } from "zod";
+import users from "../user/user.model";
+import { BloodRequestType } from "../blood_request/blood_request.constant";
+import blood_requests from "../blood_request/blood_request.model";
+import cache from "../../app/builder/cache/node-cache";
 
 const CACHE_TTL_DEFAULT = 300;
 
@@ -257,6 +261,85 @@ const IsBloodDonatedIntoDb = async (
 };
 
 
+
+
+const OVERVIEW_CACHE_KEY = "dashboard-overview";
+
+// Format Number (1000 => 1K, 1000000 => 1M)
+const formatCount = (value: number): string => {
+  return new Intl.NumberFormat("en", {
+    notation: "compact",
+    compactDisplay: "short",
+    maximumFractionDigits: 1,
+  }).format(value);
+};
+
+const findByTotalOverViewIntoDb = async () => {
+  try {
+    // Check Cache
+    const cachedOverview = cache.get(OVERVIEW_CACHE_KEY);
+
+    if (cachedOverview) {
+      return cachedOverview;
+    }
+
+    // Fetch all counts concurrently
+    const [
+      totalUser,
+      totalDonor,
+      totalRequest,
+      totalRequestedDonorFind,
+    ] = await Promise.all([
+      users.countDocuments({
+        isVerify: true,
+      }),
+
+      blood_donor.countDocuments({
+        bloodRequestType: BloodRequestType.volunteer,
+      }),
+
+      blood_requests.countDocuments({
+        bloodResuestType: BloodRequestType.request,
+      }),
+
+      blood_requests.countDocuments({
+        bloodResuestType: BloodRequestType.request,
+        isDonorFind: true,
+      }),
+    ]);
+
+    const overview = {
+      totalUser: {
+        value: totalUser,
+        display: formatCount(totalUser),
+      },
+
+      totalDonor: {
+        value: totalDonor,
+        display: formatCount(totalDonor),
+      },
+
+      totalRequest: {
+        value: totalRequest,
+        display: formatCount(totalRequest),
+      },
+
+      totalRequestedDonorFind: {
+        value: totalRequestedDonorFind,
+        display: formatCount(totalRequestedDonorFind),
+      },
+    };
+
+    // Cache for 5 minutes
+    cache.set(OVERVIEW_CACHE_KEY, overview, 300);
+
+    return overview;
+  } catch (error) {
+    throw catchError(error);
+  }
+};
+
+
 const DonorRegisterServices = {
   findMyLocationNearestBloodDonorIntoDb,
   clearDonorCache,
@@ -264,7 +347,8 @@ const DonorRegisterServices = {
   destroyDonorCacheTimer,
   changeLocationIntoDb,
   findMyCurrentLocationIntoDb,
-  IsBloodDonatedIntoDb
+  IsBloodDonatedIntoDb,
+  findByTotalOverViewIntoDb
 };
 
 export default DonorRegisterServices;

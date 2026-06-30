@@ -23,5 +23,8 @@ router.patch("/is_blood_donated/:id",
       validationRequest(DonorRegisterValidation.IsBloodDonatedSchema),
      DonorRegisterController.IsBloodDonated)
 
+router.get("/find_by_total_overview",
+     DonorRegisterController.findByTotalOverView);
+
 const DonorRequestRoute=router;
 export  default DonorRequestRoute;

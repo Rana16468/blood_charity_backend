@@ -49,12 +49,23 @@ const IsBloodDonated:RequestHandler=catchAsync(async(req , res)=>{
     data: result,
   });
     
+});
+const findByTotalOverView:RequestHandler=catchAsync(async(req ,res)=>{
+
+   const result=await DonorRegisterServices.findByTotalOverViewIntoDb();
+    sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "successfully find by total OverView",
+    data: result,
+  });
 })
 
 const DonorRegisterController={
     findMyLocationNearestBloodDonor,
     changeLocation,
     findMyCurrentLocation,
-    IsBloodDonated
+    IsBloodDonated,
+    findByTotalOverView
 }
 export default DonorRegisterController;
