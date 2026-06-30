@@ -1,5 +1,5 @@
 import express from "express";
-import cors from "cors";
+import cors, { CorsOptions } from "cors";
 import cookieParser from "cookie-parser";
 import router from "./router";
 import notFound from "./middleware/notFound";
@@ -22,10 +22,24 @@ declare global {
 }
 
 
-app.use(
-  cors()
-);
+const allowedOrigins = [
+  'https://rakro-daan.vercel.app',
+  'http://localhost:5173'
+];
 
+const corsOptions: CorsOptions = {
+  origin: (origin, callback) => {
+    // origin is automatically typed as string | undefined by CorsOptions
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
 
 app.use(cookieParser());
 app.use(bodyParser.json());
