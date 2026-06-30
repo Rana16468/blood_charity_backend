@@ -10,6 +10,7 @@ import cron from 'node-cron';
 import AutoDetectionBloodDonorTimeLine from "./utility/auto/AutoDetectionBloodDonorTimeLine";
 import SystemMemoeryAllocation from "./utility/system";
 import autoDeleteNotification from "./utility/autoDeleteNotification";
+import autoDeleteBloodRequest from "./utility/metrics/autoDeleteBloodRequest";
 const app = express();
 
 declare global {
@@ -41,11 +42,9 @@ app.use(
 
 app.use(express.urlencoded({ extended: true }));
 
-
 app.get("/", (_req, res) => {
   res.send(SystemMemoeryAllocation());
 });
-
 
 cron.schedule("*/10 * * * *", async () => {
   try {
@@ -61,12 +60,17 @@ cron.schedule("*/30 * * * *", async () => {
     console.error("Auto delete notification failed:", error);
   }
 });
-
-
+cron.schedule("*/30 * * * *", async()=>{
+  try{
+    await autoDeleteBloodRequest();
+  }
+  catch(error){
+    console.error("Auto delete Blood Requested failed:", error);
+  }
+})
 
 app.use("/api/v1", router);
 app.use("/api/v1/monitor", monitorRouter); 
-
 
 app.use(notFound);
 app.use(globalErrorHandelar);

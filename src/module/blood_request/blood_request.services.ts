@@ -53,22 +53,21 @@ const findMyLocationNearestBloodRequestIntoDb = async (
   query: Record<string, unknown>,
   generate_secret_key: string
 ) => {
-
   try {
-    const lat = Number(query.lat);
-    const lng = Number(query.lng);
-    const radius = Number(query.radius) || 10;
-    const blood = query.blood as string || "A+";
+    const lat = query.lat ? Number(query.lat) : undefined;
+    const lng = query.lng ? Number(query.lng) : undefined;
+    const radius = query.radius ? Number(query.radius) : 50; 
+    
+    // ✅ বাগ ফিক্স: blood অপশনাল করা হলো যাতে প্রথমে অল রিকোয়েস্ট শো করে
+    const blood = query.blood as string | undefined; 
+    
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 10;
     const skip = (page - 1) * limit;
     const urgency = query.urgency as string | undefined;
 
-    // ✅ TTL based on urgency in request query
     const cacheTTL = resolveCacheTTL(urgency);
-
-    // ✅ Include urgency in cache key so different urgency filters don't collide
-    const cacheKey = `blood_req:${blood}:${urgency ?? "all"}:${lat}:${lng}:${radius}:${page}:${limit}`;
+    const cacheKey = `blood_req:${blood ?? "all"}:${urgency ?? "all"}:${lat ?? "any"}:${lng ?? "any"}:${radius}:${page}:${limit}`;
 
     const cached = geoCache.get(cacheKey);
     if (cached) {
@@ -77,97 +76,107 @@ const findMyLocationNearestBloodRequestIntoDb = async (
       return cached;
     }
 
+    // ✅ ডায়নামিক ম্যাচ অবজেক্ট তৈরি
+    const matchFilters: Record<string, any> = {
+      isDelete: { $ne: true },
+      isDonorFind: { $ne: true },
+    };
 
-    const urgencyMatch = urgency ? { urgency } : {};
+    // ইউজার যদি নির্দিষ্ট ব্লাড গ্রুপ বা আরজেন্সি কুয়েরি করে, তবেই ফিল্টারে যুক্ত হবে
+    if (blood) matchFilters.blood = blood;
+    if (urgency) matchFilters.urgency = urgency;
 
     const basePipeline: PipelineStage[] = [
-      {
-        $match: {
-          blood,
-          ...urgencyMatch,
-          isDelete: { $ne: true },
-          isDonorFind: { $ne: true },
-        },
-      },
-      {
-        $addFields: {
-          distance: {
-            $let: {
-              vars: {
-                lat1: { $multiply: [lat, Math.PI / 180] },
-                lat2: { $multiply: ["$locationData.lat", Math.PI / 180] },
-                deltaLat: {
-                  $multiply: [
-                    { $subtract: ["$locationData.lat", lat] },
-                    Math.PI / 180,
-                  ],
+      { $match: matchFilters }
+    ];
+
+    // লোকেশন থাকলে ডিস্টেন্স ক্যালকুলেশন এবং ফিল্টারিং হবে
+    if (lat !== undefined && lng !== undefined) {
+      basePipeline.push(
+        {
+          $addFields: {
+            distance: {
+              $let: {
+                vars: {
+                  lat1: { $multiply: [lat, Math.PI / 180] },
+                  lat2: { $multiply: ["$locationData.lat", Math.PI / 180] },
+                  deltaLat: {
+                    $multiply: [
+                      { $subtract: ["$locationData.lat", lat] },
+                      Math.PI / 180,
+                    ],
+                  },
+                  deltaLng: {
+                    $multiply: [
+                      { $subtract: ["$locationData.lng", lng] },
+                      Math.PI / 180,
+                    ],
+                  },
                 },
-                deltaLng: {
+                in: {
                   $multiply: [
-                    { $subtract: ["$locationData.lng", lng] },
-                    Math.PI / 180,
-                  ],
-                },
-              },
-              in: {
-                $multiply: [
-                  2,
-                  6371,
-                  {
-                    $asin: {
-                      $sqrt: {
-                        $add: [
-                          {
-                            $pow: [
-                              { $sin: { $divide: ["$$deltaLat", 2] } },
-                              2,
-                            ],
-                          },
-                          {
-                            $multiply: [
-                              { $cos: "$$lat1" },
-                              { $cos: "$$lat2" },
-                              {
-                                $pow: [
-                                  { $sin: { $divide: ["$$deltaLng", 2] } },
-                                  2,
-                                ],
-                              },
-                            ],
-                          },
-                        ],
+                    2,
+                    6371, 
+                    {
+                      $asin: {
+                        $sqrt: {
+                          $add: [
+                            {
+                              $pow: [
+                                { $sin: { $divide: ["$$deltaLat", 2] } },
+                                2,
+                              ],
+                            },
+                            {
+                              $multiply: [
+                                { $cos: "$$lat1" },
+                                { $cos: "$$lat2" },
+                                {
+                                  $pow: [
+                                    { $sin: { $divide: ["$$deltaLng", 2] } },
+                                    2,
+                                  ],
+                                },
+                              ],
+                            },
+                          ],
+                        },
                       },
                     },
-                  },
-                ],
+                  ],
+                },
               },
             },
           },
+        },
+        {
+          $match: {
+            distance: { $lte: radius }, 
+          },
+        }
+      );
+    }
 
-          urgencyPriority: {
-            $switch: {
-              branches: [
-                { case: { $eq: ["$urgency", "critical"] }, then: 1 },
-                { case: { $eq: ["$urgency", "urgent"] }, then: 2 },
-                { case: { $eq: ["$urgency", "normal"] }, then: 3 },
-              ],
-              default: 99,
-            },
+    basePipeline.push({
+      $addFields: {
+        urgencyPriority: {
+          $switch: {
+            branches: [
+              { case: { $eq: ["$urgency", "critical"] }, then: 1 },
+              { case: { $eq: ["$urgency", "urgent"] }, then: 2 },
+              { case: { $eq: ["$urgency", "normal"] }, then: 3 },
+            ],
+            default: 99,
           },
         },
       },
-      {
-        $match: {
-          distance: { $lte: radius },
-        },
-      },
-      {
-        $sort: {
-          urgencyPriority: 1 as const,
-          distance: 1 as const,
-        },
-      },
-    ];
+    });
+
+    const sortStage: Record<string, 1 | -1> = { urgencyPriority: 1 };
+    if (lat !== undefined && lng !== undefined) {
+      sortStage.distance = 1;
+    }
+    basePipeline.push({ $sort: sortStage });
 
     const [requests, totalCount] = await Promise.all([
       blood_requests.aggregate([
@@ -183,7 +192,13 @@ const findMyLocationNearestBloodRequestIntoDb = async (
             bloodResuestType: 1,
             locationData: 1,
             isDonorFind: 1,
-            distance: { $round: ["$distance", 2] },
+            distance: { 
+              $cond: [
+                { $ifNull: ["$distance", false] }, 
+                { $round: ["$distance", 2] }, 
+                null
+              ] 
+            },
           },
         },
       ]),
@@ -201,16 +216,14 @@ const findMyLocationNearestBloodRequestIntoDb = async (
         totalPages,
         hasNextPage: page < totalPages,
         hasPrevPage: page > 1,
-        cachedUntil: new Date(Date.now() + cacheTTL * 1000).toISOString(), // ✅ Tell client when cache expires
+        cachedUntil: new Date(Date.now() + cacheTTL * 1000).toISOString(),
       },
       data: requests,
     };
 
     geoCache.set(cacheKey, result, cacheTTL);
 
-    return result
-
-
+    return result;
   } catch (error) {
     throw catchError(error);
   }

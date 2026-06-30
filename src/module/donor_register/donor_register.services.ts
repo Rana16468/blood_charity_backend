@@ -32,92 +32,101 @@ const findMyLocationNearestBloodDonorIntoDb = async (
   query: Record<string, unknown>,
 ) => {
   try {
-    const lat = Number(query.lat);
-    const lng = Number(query.lng);
+
+    const lat = query.lat && !Number.isNaN(Number(query.lat)) ? Number(query.lat) : undefined;
+    const lng = query.lng && !Number.isNaN(Number(query.lng)) ? Number(query.lng) : undefined;
 
   
-
-    if (Number.isNaN(lat) || Number.isNaN(lng)) {
-      throw new ApiError(
-        httpStatus.NOT_EXTENDED,
-        "lat and lng are required and must be valid numbers",
-        ""
-      );
-    }
-
-    const radius = Number(query.radius) || 10;
-    const blood = (query.blood as string) || "A+";
+    const radius = query.radius ? Number(query.radius) : 50; 
+    
+   
+    const blood = query.blood as string | undefined; 
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 10;
     const skip = (page - 1) * limit;
 
-      
 
-    const cacheKey = `blood_donor:${blood}:${lat.toFixed(3)}:${lng.toFixed(3)}:${radius}:${page}:${limit}`;
+    const cacheKey = `blood_donor:${blood ?? "all"}:${lat ? lat.toFixed(3) : "any"}:${lng ? lng.toFixed(3) : "any"}:${radius}:${page}:${limit}`;
 
     const cached = donorGeoCache.get(cacheKey);
     if (cached) {
       return cached;
     }
 
+    const matchFilters: Record<string, any> = {
+      isDelete: { $ne: true },
+      isBloodDonated: { $ne: true },
+    };
+
+    if (blood) matchFilters.blood = blood;
+
     const basePipeline: PipelineStage[] = [
-      {
-        $match: {
-          blood,
-          isDelete: { $ne: true },
-          isBloodDonated: { $ne: true },
-        },
-      },
-      {
-        $addFields: {
-          distance: {
-            $let: {
-              vars: {
-                lat1: { $multiply: [lat, Math.PI / 180] },
-                lat2: { $multiply: ["$locationData.lat", Math.PI / 180] },
-                deltaLat: {
-                  $multiply: [
-                    { $subtract: ["$locationData.lat", lat] },
-                    Math.PI / 180,
-                  ],
+      { $match: matchFilters }
+    ];
+
+    
+    if (lat !== undefined && lng !== undefined) {
+      basePipeline.push(
+        {
+          $addFields: {
+            distance: {
+              $let: {
+                vars: {
+                  lat1: { $multiply: [lat, Math.PI / 180] },
+                  lat2: { $multiply: ["$locationData.lat", Math.PI / 180] },
+                  deltaLat: {
+                    $multiply: [
+                      { $subtract: ["$locationData.lat", lat] },
+                      Math.PI / 180,
+                    ],
+                  },
+                  deltaLng: {
+                    $multiply: [
+                      { $subtract: ["$locationData.lng", lng] },
+                      Math.PI / 180,
+                    ],
+                  },
                 },
-                deltaLng: {
+                in: {
                   $multiply: [
-                    { $subtract: ["$locationData.lng", lng] },
-                    Math.PI / 180,
-                  ],
-                },
-              },
-              in: {
-                $multiply: [
-                  2,
-                  6371,
-                  {
-                    $asin: {
-                      $sqrt: {
-                        $add: [
-                          { $pow: [{ $sin: { $divide: ["$$deltaLat", 2] } }, 2] },
-                          {
-                            $multiply: [
-                              { $cos: "$$lat1" },
-                              { $cos: "$$lat2" },
-                              { $pow: [{ $sin: { $divide: ["$$deltaLng", 2] } }, 2] },
-                            ],
-                          },
-                        ],
+                    2,
+                    6371, 
+                    {
+                      $asin: {
+                        $sqrt: {
+                          $add: [
+                            { $pow: [{ $sin: { $divide: ["$$deltaLat", 2] } }, 2] },
+                            {
+                              $multiply: [
+                                { $cos: "$$lat1" },
+                                { $cos: "$$lat2" },
+                                { $pow: [{ $sin: { $divide: ["$$deltaLng", 2] } }, 2] },
+                              ],
+                            },
+                          ],
+                        },
                       },
                     },
-                  },
-                ],
+                  ],
+                },
               },
             },
           },
         },
-      },
-      { $match: { distance: { $lte: radius } } },
-      { $sort: { distance: 1 as const, createdAt: -1 as const } },
-    ];
+        { $match: { distance: { $lte: radius } } }
+      );
+    }
 
+   
+    const sortStage: Record<string, 1 | -1> = {};
+    if (lat !== undefined && lng !== undefined) {
+      sortStage.distance = 1;
+    }
+    sortStage.createdAt = -1; 
+    
+    basePipeline.push({ $sort: sortStage });
+
+   
     const [facetResult] = await blood_donor.aggregate([
       ...basePipeline,
       {
@@ -134,7 +143,14 @@ const findMyLocationNearestBloodDonorIntoDb = async (
                 locationData: 1,
                 isBloodDonated: 1,
                 createdAt: 1,
-                distance: { $round: ["$distance", 2] },
+             
+                distance: { 
+                  $cond: [
+                    { $ifNull: ["$distance", false] }, 
+                    { $round: ["$distance", 2] }, 
+                    null
+                  ] 
+                },
               },
             },
           ],
@@ -154,7 +170,7 @@ const findMyLocationNearestBloodDonorIntoDb = async (
         totalPages,
         hasNextPage: page < totalPages,
         hasPrevPage: page > 1,
-        cachedUntil: new Date(Date.now() + CACHE_TTL_DEFAULT * 1000).toISOString(),
+        cachedUntil: new Date(Date.now() + (typeof CACHE_TTL_DEFAULT !== 'undefined' ? CACHE_TTL_DEFAULT : 300) * 1000).toISOString(),
       },
       data: facetResult?.data || [],
     };
