@@ -9,6 +9,7 @@ import monitorRouter from "./utility/metrics/metricsMiddleware";
 import cron from 'node-cron';
 import AutoDetectionBloodDonorTimeLine from "./utility/auto/AutoDetectionBloodDonorTimeLine";
 import SystemMemoeryAllocation from "./utility/system";
+import autoDeleteNotification from "./utility/autoDeleteNotification";
 const app = express();
 
 declare global {
@@ -53,6 +54,15 @@ cron.schedule("*/10 * * * *", async () => {
     console.error(error);
   }
 });
+cron.schedule("*/30 * * * *", async () => {
+  try {
+    await autoDeleteNotification();
+  } catch (error) {
+    console.error("Auto delete notification failed:", error);
+  }
+});
+
+
 
 app.use("/api/v1", router);
 app.use("/api/v1/monitor", monitorRouter); 
