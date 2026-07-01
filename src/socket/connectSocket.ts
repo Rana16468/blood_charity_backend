@@ -4,7 +4,8 @@ import mongoose from 'mongoose';
 import users from '../module/user/user.model';
 import { jwtHelpers } from '../app/helper/jwtHelpers';
 import config from '../app/config';
-import  handleEvents from './handleEvents'
+import handleEvents from './handleEvents';
+
 let io: ChatServer;
 
 // socketId → userId mapping
@@ -16,9 +17,11 @@ const connectSocket = (server: HTTPServer) => {
       cors: {
         origin: '*',
         methods: ['GET', 'POST'],
+        credentials: true, 
       },
       pingInterval: 25000,
       pingTimeout: 20000,
+      allowEIO3: true, // ওল্ড ক্লায়েন্ট সাপোর্ট বা স্ট্যাবিলিটির জন্য
     });
   }
 
@@ -28,24 +31,20 @@ const connectSocket = (server: HTTPServer) => {
     let currentUserId: string | null = null;
 
     try {
-
       const token = String(socket.handshake.query.token || '').trim();
 
       if (token) {
-
         const decoded = await jwtHelpers.verifyToken(
           token,
           config.jwt_access_secret as string
         );
 
         const userId = decoded?.id;
-      
-          socket.join(userId);
-  
 
+        // 💡 ফিক্স ১: প্রথমে userId ভ্যালিড কিনা চেক করুন, তারপর join করান
         if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
           socket.emit('error', { message: 'Invalid token userId' });
-          socket.disconnect();
+          setTimeout(() => socket.disconnect(), 1000); // একটু সময় দিয়ে ডিসকানেক্ট করুন যাতে ফ্রন্টএন্ড এররটি পায়
           return;
         }
 
@@ -60,16 +59,16 @@ const connectSocket = (server: HTTPServer) => {
 
         if (!currentUser) {
           socket.emit('error', { message: 'User not found' });
-          socket.disconnect();
+          setTimeout(() => socket.disconnect(), 1000);
           return;
         }
 
         currentUserId = String(currentUser._id);
 
         onlineUsers.set(currentUserId, socket.id);
+        
+        // 💡 একবারে জয়েন করান
         socket.join(currentUserId);
-
-       
 
         socket.emit('connected', {
           success: true,
@@ -82,12 +81,11 @@ const connectSocket = (server: HTTPServer) => {
         socket.broadcast.emit('user-online', {
           userId: currentUserId,
         });
-         handleEvents(io, socket, currentUserId,currentUser.generate_secret_key , currentUser.role);
+
+        handleEvents(io, socket, currentUserId, currentUser.generate_secret_key, currentUser.role);
 
         console.log('✅ Authenticated user connected:', currentUserId);
       } else {
-
-
         socket.emit('connected', {
           success: true,
           type: 'guest',
@@ -105,7 +103,7 @@ const connectSocket = (server: HTTPServer) => {
         message: 'Authentication failed',
       });
 
-      socket.disconnect();
+      setTimeout(() => socket.disconnect(), 1000);
       return;
     }
 
@@ -136,7 +134,6 @@ const connectSocket = (server: HTTPServer) => {
 
   return io;
 };
-
 
 const getSocketIO = () => {
   if (!io) throw new Error('socket.io is not initialized');
