@@ -21,7 +21,7 @@ const connectSocket = (server: HTTPServer) => {
       },
       pingInterval: 25000,
       pingTimeout: 20000,
-      allowEIO3: true, // ওল্ড ক্লায়েন্ট সাপোর্ট বা স্ট্যাবিলিটির জন্য
+      allowEIO3: true, 
     });
   }
 
